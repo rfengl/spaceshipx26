@@ -1,7 +1,5 @@
 import { Link } from 'react-router-dom';
 
-import './Dashboard.css';
-
 const NAV_ITEMS = [
   {
     to: '/resources',
@@ -25,12 +23,16 @@ const NAV_ITEMS = [
 
 export default function Dashboard() {
   return (
-    <section className="nav-grid">
+    <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
       {NAV_ITEMS.map((item) => (
-        <Link key={item.to} to={item.to} className="nav-card">
-          <span className="nav-icon">{item.icon}</span>
-          <h2>{item.title}</h2>
-          <p>{item.description}</p>
+        <Link
+          key={item.to}
+          to={item.to}
+          className="flex flex-col gap-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-5 py-6 text-inherit no-underline transition hover:-translate-y-0.5 hover:border-[#5ad0ff] hover:bg-[rgba(90,208,255,0.08)]"
+        >
+          <span className="text-[1.9rem]">{item.icon}</span>
+          <h2 className="mb-0 mt-1 text-[1.15rem]">{item.title}</h2>
+          <p className="m-0 text-[0.85rem] text-[#9fb3d8]">{item.description}</p>
         </Link>
       ))}
     </section>

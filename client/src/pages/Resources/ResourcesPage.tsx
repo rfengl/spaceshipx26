@@ -11,12 +11,13 @@ import {
   deleteResource,
 } from '../../api/resources';
 import type { MembershipLevel, NewResource, Resource } from '../../types';
-import './ResourcesPage.css';
 
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
 const emptyForm: NewResource = { name: '', minLevel: 'SILVER', maxQty: 1 };
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+
+const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
 
 export default function ResourcesPage() {
   const { user } = useAuth();
@@ -26,13 +27,11 @@ export default function ResourcesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Add/Edit modal state
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewResource>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
 
-  // Delete confirmation state
   const [deleting, setDeleting] = useState<Resource | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -126,30 +125,34 @@ export default function ResourcesPage() {
       </Link>
 
       <section className="card">
-        <div className="resources-head">
-          <h2>Resources</h2>
-          {isCrew && <button onClick={openCreate}>+ Add resource</button>}
+        <div className="flex items-center justify-between gap-4 max-sm:mb-4">
+          <h2 className="m-0 text-[1.1rem]">Resources</h2>
+          {isCrew && (
+            <button className="btn" onClick={openCreate}>
+              + Add resource
+            </button>
+          )}
         </div>
 
         {!isCrew && (
-          <p className="muted">
+          <p className="muted mt-3">
             Read-only — resource provisioning is restricted to Crew Leads.
           </p>
         )}
 
-        {error && <p className="error">⚠ {error}</p>}
+        {error && <p className="error mt-3">⚠ {error}</p>}
 
         {loading && resources.length === 0 ? (
-          <p className="muted">Loading resources…</p>
+          <p className="muted mt-3">Loading resources…</p>
         ) : resources.length === 0 ? (
-          <p className="muted">No resources yet.</p>
+          <p className="muted mt-3">No resources yet.</p>
         ) : (
-          <table className="resource-table">
+          <table className="resource-table mt-3">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Min tier</th>
-                <th>Max qty</th>
+                <th className="num">Max qty</th>
                 <th>Status</th>
                 {isCrew && <th aria-label="Actions" />}
               </tr>
@@ -161,17 +164,22 @@ export default function ResourcesPage() {
                   <td data-label="Min tier">
                     <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
                   </td>
-                  <td data-label="Max qty">{r.maxQty}</td>
+                  <td className="num" data-label="Max qty">
+                    {r.maxQty}
+                  </td>
                   <td data-label="Status">{r.active ? 'Active' : 'Decommissioned'}</td>
                   {isCrew && (
                     <td className="row-actions">
-                      <button className="link" onClick={() => openEdit(r)}>
+                      <button className="link-btn" onClick={() => openEdit(r)}>
                         Edit
                       </button>
-                      <button className="link" onClick={() => void toggleActive(r)}>
+                      <button className="link-btn" onClick={() => void toggleActive(r)}>
                         {r.active ? 'Decommission' : 'Recommission'}
                       </button>
-                      <button className="link danger" onClick={() => setDeleting(r)}>
+                      <button
+                        className="link-btn text-[#ff9d9d]"
+                        onClick={() => setDeleting(r)}
+                      >
                         Delete
                       </button>
                     </td>
@@ -185,11 +193,12 @@ export default function ResourcesPage() {
 
       {formOpen && (
         <Modal title={editingId ? 'Edit resource' : 'New resource'} onClose={closeForm}>
-          <form className="modal-form" onSubmit={handleSubmit}>
-            <label>
+          <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
+            <label className={fieldLabel}>
               Name
               <input
                 type="text"
+                className="input"
                 value={form.name}
                 placeholder="e.g. Hydroponics Bay"
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -197,9 +206,10 @@ export default function ResourcesPage() {
                 required
               />
             </label>
-            <label>
+            <label className={fieldLabel}>
               Minimum tier
               <select
+                className="input"
                 value={form.minLevel}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, minLevel: e.target.value as MembershipLevel }))
@@ -212,23 +222,27 @@ export default function ResourcesPage() {
                 ))}
               </select>
             </label>
-            <label>
+            <label className={fieldLabel}>
               Max quantity
               <input
                 type="number"
+                className="input"
                 min={1}
                 value={form.maxQty}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, maxQty: Math.max(1, Number(e.target.value) || 1) }))
+                  setForm((f) => ({
+                    ...f,
+                    maxQty: Math.max(1, Number(e.target.value) || 1),
+                  }))
                 }
                 required
               />
             </label>
-            <div className="modal-actions">
-              <button type="button" className="ghost" onClick={closeForm}>
+            <div className="mt-4 flex justify-end gap-2.5">
+              <button type="button" className="btn-ghost" onClick={closeForm}>
                 Cancel
               </button>
-              <button type="submit" disabled={submitting}>
+              <button type="submit" className="btn" disabled={submitting}>
                 {submitting ? 'Saving…' : editingId ? 'Save' : 'Add resource'}
               </button>
             </div>

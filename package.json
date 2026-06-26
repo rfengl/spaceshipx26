@@ -13,7 +13,9 @@
     "dev": "concurrently --names \"server,client\" --prefix-colors \"cyan,magenta\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "test": "npm run test --prefix server"
+    "test": "npm run test --prefix server",
+    "format": "prettier --write .",
+    "prepare": "husky"
   },
   "keywords": [
     "express",
@@ -23,7 +25,13 @@
   ],
   "author": "",
   "license": "MIT",
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,css,md}": "prettier --write"
+  },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.8.5"
   }
 }

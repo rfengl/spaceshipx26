@@ -1,15 +1,471 @@
-:root {
-  color-scheme: dark;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family:
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    background: radial-gradient(circle at 30% 20%, #1b2a4a, #060912 70%);
+    color: #e8eefc;
+  }
 }
 
-* {
-  box-sizing: border-box;
+/* Reusable component classes (Tailwind @apply) shared across pages. */
+@layer components {
+  .card {
+    @apply mt-5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-6 py-5;
+  }
+
+  .btn {
+    @apply cursor-pointer rounded-lg border-0 bg-[#3b6cf6] px-[1.1rem] py-[0.6rem] text-[0.95rem] text-white transition hover:bg-[#2f5ad6] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-ghost {
+    @apply cursor-pointer whitespace-nowrap rounded-lg border border-white/[0.18] bg-transparent px-[1.1rem] py-[0.6rem] text-[0.95rem] text-white;
+  }
+
+  .btn-danger {
+    @apply cursor-pointer rounded-lg border-0 bg-[#c0392b] px-[1.1rem] py-[0.6rem] text-[0.95rem] text-white transition hover:bg-[#a93226] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .link-btn {
+    @apply cursor-pointer border-0 bg-transparent p-0 text-[0.85rem] text-[#7fd0ff] hover:underline;
+  }
+
+  .input {
+    @apply rounded-lg border border-[rgba(120,160,220,0.25)] bg-[#060912] px-[0.65rem] py-[0.55rem] text-[0.95rem] text-[#e8eefc] focus:outline-none;
+  }
+
+  .back-link {
+    @apply inline-block text-[0.85rem] text-[#7fd0ff] no-underline hover:underline;
+  }
+
+  .muted {
+    @apply text-[#7f93b8];
+  }
+
+  .error {
+    @apply text-[#ff9d9d];
+  }
 }
 
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: radial-gradient(circle at 30% 20%, #1b2a4a, #060912 70%);
-  color: #e8eefc;
-  min-height: 100vh;
+/* Membership tier badges. The class names are built at runtime
+   (`tier-${level}`), so they live outside @layer to avoid being purged. */
+.tier {
+  display: inline-block;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.tier-SILVER {
+  color: #dfe6f2;
+  background: rgba(200, 210, 230, 0.14);
+  border-color: rgba(200, 210, 230, 0.45);
+}
+.tier-GOLD {
+  color: #ffdf85;
+  background: rgba(255, 200, 90, 0.14);
+  border-color: rgba(255, 200, 90, 0.5);
+}
+.tier-PLATINUM {
+  color: #9cf3ff;
+  background: rgba(120, 230, 255, 0.14);
+  border-color: rgba(120, 230, 255, 0.5);
+}
+
+/* Resources table — responsive "stacked card" layout on mobile uses the
+   data-label attribute, which can't be expressed with utilities. */
+.resource-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.resource-table th,
+.resource-table td {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.resource-table th {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #7f93b8;
+}
+
+.resource-table tr.inactive td {
+  opacity: 0.5;
+}
+
+/* Right-align numeric columns (e.g. Max qty) on desktop. */
+.resource-table .num {
+  text-align: right;
+}
+
+.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.row-actions button + button {
+  margin-left: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .resource-table thead {
+    display: none;
+  }
+
+  .resource-table,
+  .resource-table tbody,
+  .resource-table tr,
+  .resource-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .resource-table tr {
+    margin-bottom: 0.85rem;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .resource-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .resource-table tr td:last-child {
+    border-bottom: 0;
+  }
+
+  .resource-table td::before {
+    content: attr(data-label);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #7f93b8;
+  }
+
+  .resource-table td.row-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-top: 0.6rem;
+  }
+
+  .resource-table td.row-actions::before {
+    display: none;
+  }
+
+  .row-actions button + button {
+    margin-left: 0;
+  }
+}
+
+/* ===========================================================================
+   Login cockpit artwork — bespoke visual effects kept as custom CSS.
+   Everything else in the app is styled with Tailwind utility classes.
+   =========================================================================== */
+
+/* The porthole itself is the metal hull frame; the glass is inset inside it
+   so the bolts sit on the metal ring, not on the glass. */
+.porthole {
+  position: relative;
+  width: min(100%, 240px);
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #3a4a6b, #161d2b 55%, #28344e);
+  box-shadow:
+    0 0 0 3px #0d111a,
+    0 0 50px rgba(90, 170, 255, 0.22),
+    inset 0 3px 6px rgba(255, 255, 255, 0.18),
+    inset 0 -6px 14px rgba(0, 0, 0, 0.6);
+}
+
+/* The glass: a circle inset from the frame, clipping the space scene. */
+.space {
+  position: absolute;
+  inset: 9%;
+  border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(
+    140% 120% at 70% 30%,
+    #18244a 0%,
+    #0a0f25 45%,
+    #04060f 100%
+  );
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.9);
+}
+
+/* Star layers (parallax) built from tiled radial-gradient dots */
+.stars {
+  position: absolute;
+  inset: -50%;
+  background-repeat: repeat;
+}
+
+.stars-far {
+  background-image:
+    radial-gradient(1px 1px at 25px 20px, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 90px 60px, rgba(200, 225, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 150px 110px, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 60px 150px, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 190px 40px, rgba(210, 230, 255, 0.6), transparent);
+  background-size: 220px 220px;
+  animation:
+    drift 90s linear infinite,
+    twinkle 5s ease-in-out infinite;
+}
+
+.stars-mid {
+  background-image:
+    radial-gradient(1.6px 1.6px at 40px 30px, #ffffff, transparent),
+    radial-gradient(1.6px 1.6px at 120px 90px, #e6f0ff, transparent),
+    radial-gradient(1.6px 1.6px at 200px 150px, #ffffff, transparent),
+    radial-gradient(1.6px 1.6px at 80px 180px, #d9e8ff, transparent);
+  background-size: 260px 260px;
+  animation:
+    drift 60s linear infinite,
+    twinkle 3.5s ease-in-out infinite;
+}
+
+.stars-near {
+  background-image:
+    radial-gradient(2.2px 2.2px at 70px 50px, #ffffff, transparent),
+    radial-gradient(2.2px 2.2px at 180px 130px, #cfe6ff, transparent),
+    radial-gradient(2.2px 2.2px at 30px 170px, #ffffff, transparent);
+  background-size: 320px 320px;
+  animation:
+    drift 38s linear infinite,
+    twinkle 2.6s ease-in-out infinite;
+}
+
+@keyframes drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(120px);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Distant nebula glow */
+.nebula {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 35% at 25% 70%, rgba(120, 90, 220, 0.35), transparent 70%),
+    radial-gradient(35% 30% at 80% 25%, rgba(40, 160, 220, 0.3), transparent 70%);
+  mix-blend-mode: screen;
+  animation: pulse 9s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A planet hugging the bottom-left of the view */
+.planet {
+  position: absolute;
+  width: 46%;
+  aspect-ratio: 1;
+  left: -14%;
+  bottom: -22%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 30%,
+    #6fd6ff 0%,
+    #2a6fb0 38%,
+    #133a63 70%,
+    #0a1f38 100%
+  );
+  box-shadow:
+    inset -14px -10px 40px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(70, 150, 220, 0.4);
+}
+
+/* Spaceship drifting across the window */
+.ship {
+  position: absolute;
+  top: 30%;
+  left: -30%;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+  animation: fly 18s linear infinite;
+}
+
+@keyframes fly {
+  0% {
+    transform: translate(0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate(120%, -10%) rotate(-2deg);
+  }
+  100% {
+    transform: translate(260%, 4%) rotate(-2deg);
+  }
+}
+
+.thrust {
+  transform-origin: 60px 45px;
+  animation: flicker 0.18s steps(2) infinite;
+}
+
+@keyframes flicker {
+  from {
+    opacity: 0.65;
+    transform: scaleX(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1.08);
+  }
+}
+
+/* Occasional shooting star — glowing head leads, faint tail trails behind */
+.shooting-star {
+  position: absolute;
+  top: 12%;
+  left: 8%;
+  width: 90px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95));
+  border-radius: 2px;
+  transform: rotate(32deg);
+  opacity: 0;
+  animation: shoot 7s ease-in infinite;
+}
+
+@keyframes shoot {
+  0%,
+  82% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(32deg);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(190px, 120px) rotate(32deg);
+  }
+}
+
+/* Curved glass reflection over the whole window */
+.glass-glare {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, transparent 38%),
+    radial-gradient(120% 80% at 50% 120%, rgba(0, 0, 0, 0.5), transparent 60%);
+  pointer-events: none;
+}
+
+/* Seam + inner shading where the glass meets the metal frame */
+.frame {
+  position: absolute;
+  inset: 9%;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    inset 0 0 22px 6px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+/* Bolts spaced around the metal frame ring */
+.bolt {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #c9d6ea, #5a6a86 55%, #2a3344 100%);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    inset 0 0 2px rgba(255, 255, 255, 0.5);
+  z-index: 3;
+}
+
+.b1 {
+  top: 3%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.b2 {
+  top: 50%;
+  right: 3%;
+  transform: translateY(-50%);
+}
+.b3 {
+  bottom: 3%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.b4 {
+  top: 50%;
+  left: 3%;
+  transform: translateY(-50%);
+}
+.b5 {
+  top: 16%;
+  right: 16%;
+}
+.b6 {
+  bottom: 16%;
+  right: 16%;
+}
+.b7 {
+  bottom: 16%;
+  left: 16%;
+}
+.b8 {
+  top: 16%;
+  left: 16%;
+}
+
+@media (max-width: 720px) {
+  .porthole {
+    width: min(210px, 64vw);
+  }
 }

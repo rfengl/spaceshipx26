@@ -23,14 +23,14 @@ export default function ConfirmDialog({
 }: Props) {
   return (
     <Modal title={title} onClose={onCancel}>
-      <p className="muted">{message}</p>
-      <div className="modal-actions">
-        <button type="button" className="ghost" onClick={onCancel} disabled={busy}>
+      <p className="muted m-0">{message}</p>
+      <div className="mt-4 flex justify-end gap-2.5">
+        <button type="button" className="btn-ghost" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
         <button
           type="button"
-          className={danger ? 'btn-danger' : ''}
+          className={danger ? 'btn-danger' : 'btn'}
           onClick={onConfirm}
           disabled={busy}
         >
