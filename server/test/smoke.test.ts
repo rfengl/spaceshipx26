@@ -26,39 +26,9 @@ test('GET /api/health returns ok', async () => {
   });
 });
 
-test('missions CRUD lifecycle', async () => {
+test('unknown route returns 404', async () => {
   await withServer(async (base) => {
-    // Create
-    const created = await fetch(`${base}/api/missions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Test Flight', crew: 2 }),
-    });
-    assert.equal(created.status, 201);
-    const { data: mission } = await created.json();
-    assert.ok(mission.id);
-
-    // Read
-    const fetched = await fetch(`${base}/api/missions/${mission.id}`);
-    assert.equal(fetched.status, 200);
-
-    // Delete
-    const deleted = await fetch(`${base}/api/missions/${mission.id}`, { method: 'DELETE' });
-    assert.equal(deleted.status, 204);
-
-    // Confirm gone
-    const missing = await fetch(`${base}/api/missions/${mission.id}`);
-    assert.equal(missing.status, 404);
-  });
-});
-
-test('POST /api/missions validates name', async () => {
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/missions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ crew: 1 }),
-    });
-    assert.equal(res.status, 400);
+    const res = await fetch(`${base}/api/does-not-exist`);
+    assert.equal(res.status, 404);
   });
 });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import LoginPage from './LoginPage';
-import MissionControl from './MissionControl';
+import Dashboard from './Dashboard';
 
 export default function App() {
   const [pilot, setPilot] = useState<string | null>(null);
@@ -10,5 +10,5 @@ export default function App() {
     return <LoginPage onLogin={setPilot} />;
   }
 
-  return <MissionControl pilot={pilot} onLogout={() => setPilot(null)} />;
+  return <Dashboard pilot={pilot} onLogout={() => setPilot(null)} />;
 }

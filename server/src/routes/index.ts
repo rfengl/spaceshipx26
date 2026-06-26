@@ -1,19 +1,17 @@
 import { Router } from 'express';
 
 import healthRouter from './health.js';
-import missionsRouter from './missions.js';
 
 const router = Router();
 
 router.get('/', (_req, res) => {
   res.json({
-    name: 'SpaceshipX26 API',
+    name: 'SpaceshipX26 PRMS API',
     version: '1.0.0',
-    endpoints: ['/api/health', '/api/missions'],
+    endpoints: ['/api/health'],
   });
 });
 
 router.use('/health', healthRouter);
-router.use('/missions', missionsRouter);
 
 export default router;

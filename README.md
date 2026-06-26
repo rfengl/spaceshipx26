@@ -111,20 +111,14 @@ Base path: `/api`
 | ------ | -------------------- | ---------------------- |
 | GET    | `/api`               | API info               |
 | GET    | `/api/health`        | Health/uptime check    |
-| GET    | `/api/missions`      | List missions          |
-| GET    | `/api/missions/:id`  | Get one mission        |
-| POST   | `/api/missions`      | Create mission         |
-| PUT    | `/api/missions/:id`  | Update mission         |
-| DELETE | `/api/missions/:id`  | Delete mission         |
+
+> PRMS endpoints (passengers, resources, usage, reports) are added as the
+> domain is built out across Levels 1–3.
 
 ### Example
 
 ```bash
 curl http://localhost:3000/api/health
-curl http://localhost:3000/api/missions
-curl -X POST http://localhost:3000/api/missions \
-  -H 'content-type: application/json' \
-  -d '{"name":"Lunar Survey","crew":4}'
 ```
 
 ## Tests
@@ -143,7 +137,9 @@ variables: `PORT`, `HOST`, `NODE_ENV`, `CORS_ORIGIN`, `RATE_LIMIT_WINDOW_MS`,
 
 ## Notes
 
-The `missions` resource uses an in-memory store
-(`server/src/data/missionStore.ts`) for demonstration. Replace it with a database
-layer (Postgres, MongoDB, etc.) — the controllers depend only on the store's
-interface. Login is currently a front-end-only gate (no real auth backend yet).
+This is the Spaceship X26 **Passenger Resource Management System (PRMS)** — Crew
+Leads manage passengers and resources; passengers discover and use resources
+permitted by their membership tier (Silver → Gold → Platinum). The domain is
+built out across Levels 1–3 (basic management, dynamic access/validation,
+reporting). Login is currently a front-end-only role gate; a real auth backend
+can be added behind the same boundary.
