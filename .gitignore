@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build / coverage
+dist/
+coverage/
+
+# Generated frontend build output (produced by `npm run build`)
+/public/
+
+# Challenge brief (Everest copyright — not for republishing)
+/doc/
