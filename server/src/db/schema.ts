@@ -34,4 +34,20 @@ CREATE TABLE IF NOT EXISTS usage_logs (
 
 CREATE INDEX IF NOT EXISTS idx_usage_passenger ON usage_logs(passenger_id);
 CREATE INDEX IF NOT EXISTS idx_usage_resource  ON usage_logs(resource_id);
+
+-- Authentication accounts. Each user is linked to exactly one domain subject:
+-- a crew lead (admin) or a passenger.
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role          TEXT NOT NULL CHECK (role IN ('CREW_LEAD','PASSENGER')),
+  passenger_id  TEXT REFERENCES passengers(id) ON DELETE CASCADE,
+  crew_lead_id  TEXT REFERENCES crew_leads(id) ON DELETE CASCADE,
+  created_at    TEXT NOT NULL,
+  CHECK (
+    (role = 'CREW_LEAD' AND crew_lead_id IS NOT NULL AND passenger_id IS NULL) OR
+    (role = 'PASSENGER' AND passenger_id IS NOT NULL AND crew_lead_id IS NULL)
+  )
+);
 `;

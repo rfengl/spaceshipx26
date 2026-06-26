@@ -1,24 +1,50 @@
 import { useState, type FormEvent } from 'react';
 
+import { login } from '../../api/auth';
+import type { AuthUser } from '../../types';
 import './LoginPage.css';
 
 interface Props {
-  onLogin: (callsign: string) => void;
+  onAuthenticated: (user: AuthUser) => void;
 }
 
-export default function LoginPage({ onLogin }: Props) {
-  const [callsign, setCallsign] = useState('');
-  const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
+// Seeded accounts, shown as one-click hints (all share the demo password).
+const DEMO_PASSWORD = 'mars2026';
+const DEMO_LOGINS: { role: string; username: string }[] = [
+  { role: 'Crew Lead', username: 'ada.lovelace' },
+  { role: 'Silver', username: 'nova.reyes' },
+  { role: 'Gold', username: 'priya.anand' },
+  { role: 'Platinum', username: 'lena.park' },
+];
 
-  function handleSubmit(event: FormEvent) {
+export default function LoginPage({ onAuthenticated }: Props) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function applyHint(name: string) {
+    setUsername(name);
+    setPassword(DEMO_PASSWORD);
+    setError(null);
+  }
+
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!callsign.trim() || !code.trim()) {
+    if (!username.trim() || !password) {
       setError('Enter your callsign and access code to proceed.');
       return;
     }
+    setSubmitting(true);
     setError(null);
-    onLogin(callsign.trim());
+    try {
+      const user = await login(username.trim(), password);
+      onAuthenticated(user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -96,13 +122,13 @@ export default function LoginPage({ onLogin }: Props) {
           </div>
 
           <label className="field">
-            <span>Callsign</span>
+            <span>Pilot Name</span>
             <input
               type="text"
-              value={callsign}
+              value={username}
               autoComplete="username"
-              placeholder="e.g. Nova-7"
-              onChange={(e) => setCallsign(e.target.value)}
+              placeholder="e.g. ada.lovelace"
+              onChange={(e) => setUsername(e.target.value)}
             />
           </label>
 
@@ -110,20 +136,35 @@ export default function LoginPage({ onLogin }: Props) {
             <span>Access Code</span>
             <input
               type="password"
-              value={code}
+              value={password}
               autoComplete="current-password"
               placeholder="••••••••"
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </label>
 
           {error && <p className="login-error">⚠ {error}</p>}
 
-          <button type="submit" className="launch">
-            Initiate Launch Sequence
+          <button type="submit" className="launch" disabled={submitting}>
+            {submitting ? 'Authenticating…' : 'Initiate Launch Sequence'}
           </button>
 
-          <p className="hint">Authorized crew only. All activity is logged.</p>
+          <div className="login-hints">
+            <span className="hints-label">Demo logins · password {DEMO_PASSWORD}</span>
+            <div className="hint-chips">
+              {DEMO_LOGINS.map((demo) => (
+                <button
+                  type="button"
+                  key={demo.username}
+                  className="hint-chip"
+                  onClick={() => applyHint(demo.username)}
+                >
+                  <strong>{demo.role}</strong>
+                  {demo.username}
+                </button>
+              ))}
+            </div>
+          </div>
         </form>
       </div>
     </div>

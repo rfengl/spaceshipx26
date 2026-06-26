@@ -2,13 +2,23 @@ import { useState } from 'react';
 
 import LoginPage from './pages/Login/LoginPage';
 import Dashboard from './pages/Dashboard/Dashboard';
+import { loadStoredUser, logout } from './api/auth';
+import type { AuthUser } from './types';
 
 export default function App() {
-  const [pilot, setPilot] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(loadStoredUser());
 
-  if (!pilot) {
-    return <LoginPage onLogin={setPilot} />;
+  if (!user) {
+    return <LoginPage onAuthenticated={setUser} />;
   }
 
-  return <Dashboard pilot={pilot} onLogout={() => setPilot(null)} />;
+  return (
+    <Dashboard
+      user={user}
+      onLogout={() => {
+        logout();
+        setUser(null);
+      }}
+    />
+  );
 }

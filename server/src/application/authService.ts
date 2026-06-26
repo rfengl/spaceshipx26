@@ -1,0 +1,44 @@
+import type { AuthUser, User } from '../domain/models.js';
+import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
+import type { TokenService } from '../domain/ports/tokenService.js';
+import type { UserRepository } from '../domain/ports/userRepository.js';
+import type { HttpError } from '../types.js';
+
+export interface LoginResult {
+  token: string;
+  user: AuthUser;
+}
+
+const invalidCredentials = (): HttpError => {
+  const err: HttpError = new Error('Invalid username or password');
+  err.status = 401;
+  return err;
+};
+
+const toAuthUser = (user: User): AuthUser => ({
+  id: user.id,
+  username: user.username,
+  role: user.role,
+  ...(user.passengerId ? { passengerId: user.passengerId } : {}),
+  ...(user.crewLeadId ? { crewLeadId: user.crewLeadId } : {}),
+});
+
+export class AuthService {
+  constructor(
+    private readonly users: UserRepository,
+    private readonly hasher: PasswordHasher,
+    private readonly tokens: TokenService,
+  ) {}
+
+  async login(username: string, password: string): Promise<LoginResult> {
+    const user = this.users.findByUsername(username);
+    // Always run a comparison-shaped path to avoid leaking which usernames
+    // exist via timing, then fail uniformly.
+    const ok = user ? await this.hasher.compare(password, user.passwordHash) : false;
+    if (!user || !ok) {
+      throw invalidCredentials();
+    }
+    const authUser = toAuthUser(user);
+    return { token: this.tokens.sign(authUser), user: authUser };
+  }
+}

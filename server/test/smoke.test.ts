@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AddressInfo } from 'node:net';
 
-import app from '../src/app.js';
+import { createDatabase, migrate } from '../src/db/index.js';
+import { buildContainer } from '../src/container.js';
+import { createApp } from '../src/app.js';
+
+const db = createDatabase(':memory:');
+migrate(db);
+const app = createApp(buildContainer(db));
 
 // Starts the app on an ephemeral port, runs requests, then closes.
 const withServer = async (fn: (base: string) => Promise<void>): Promise<void> => {

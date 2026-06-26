@@ -1,9 +1,18 @@
-import app from './app.js';
 import config from './config/index.js';
 import { getDb } from './db/index.js';
+import { seedDatabase } from './db/seed.js';
+import { buildContainer } from './container.js';
+import { createApp } from './app.js';
 
-// Open and migrate the database before accepting traffic.
-getDb();
+// Open and migrate the database, build the app, then seed starter data if empty.
+const db = getDb();
+const container = buildContainer(db);
+const { seeded } = await seedDatabase(db, container.passwordHasher);
+if (seeded) {
+  console.log('Database seeded with starter crew leads, passengers, resources, and users.');
+}
+
+const app = createApp(container);
 
 const server = app.listen(config.port, config.host, () => {
   console.log(

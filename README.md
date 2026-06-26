@@ -107,18 +107,46 @@ package.json           # root: orchestration scripts only
 
 Base path: `/api`
 
-| Method | Path                 | Description            |
-| ------ | -------------------- | ---------------------- |
-| GET    | `/api`               | API info               |
-| GET    | `/api/health`        | Health/uptime check    |
+| Method | Path                 | Description                                  |
+| ------ | -------------------- | -------------------------------------------- |
+| GET    | `/api`               | API info                                     |
+| GET    | `/api/health`        | Health/uptime check                          |
+| POST   | `/api/auth/login`    | Authenticate, returns `{ token, user }` (JWT)|
+| GET    | `/api/auth/me`       | Current user (requires `Bearer` token)       |
 
 > PRMS endpoints (passengers, resources, usage, reports) are added as the
 > domain is built out across Levels 1–3.
+
+### Authentication
+
+Local username/password auth: passwords are stored **bcrypt-hashed**, and a
+successful login returns a **JWT** carrying the user's role/tier. Send it as
+`Authorization: Bearer <token>` on protected requests.
+
+All seeded accounts share the demo password **`mars2026`**:
+
+| Username        | Role / Tier      |
+| --------------- | ---------------- |
+| `ada.lovelace`  | Crew Lead        |
+| `nova.reyes`    | Passenger · Silver   |
+| `priya.anand`   | Passenger · Gold     |
+| `lena.park`     | Passenger · Platinum |
+
+(Plus `grace.hopper`, `katherine.johnson` (crew leads) and `milo.chen`,
+`tomas.vega`, `idris.cole` (passengers).)
 
 ### Example
 
 ```bash
 curl http://localhost:3000/api/health
+
+# Log in and capture the token
+curl -X POST http://localhost:3000/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"ada.lovelace","password":"mars2026"}'
+
+# Use it
+curl http://localhost:3000/api/auth/me -H 'authorization: Bearer <token>'
 ```
 
 ## Tests
@@ -133,7 +161,9 @@ npm test --prefix server
 
 Backend config is read from `server/.env` (see `server/.env.example`). Key
 variables: `PORT`, `HOST`, `NODE_ENV`, `CORS_ORIGIN`, `RATE_LIMIT_WINDOW_MS`,
-`RATE_LIMIT_MAX`.
+`RATE_LIMIT_MAX`, `DB_PATH`, and `JWT_SECRET` / `JWT_EXPIRES_IN`.
+
+> **Set a strong `JWT_SECRET` in production** — the default is for local dev only.
 
 ## Notes
 
@@ -141,5 +171,10 @@ This is the Spaceship X26 **Passenger Resource Management System (PRMS)** — Cr
 Leads manage passengers and resources; passengers discover and use resources
 permitted by their membership tier (Silver → Gold → Platinum). The domain is
 built out across Levels 1–3 (basic management, dynamic access/validation,
-reporting). Login is currently a front-end-only role gate; a real auth backend
-can be added behind the same boundary.
+reporting).
+
+Data is persisted in **SQLite** (via `better-sqlite3`) behind repository
+interfaces (`domain/ports`), with SQLite adapters under `infrastructure/`, so the
+domain logic stays decoupled from storage. Authentication is local
+username/password with **bcrypt** hashing and **JWT** tokens, wired through a
+composition root (`server/src/container.ts`) for testability.

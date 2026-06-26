@@ -1,5 +1,7 @@
 import type { MembershipLevel } from './membership.js';
 
+export type Role = 'CREW_LEAD' | 'PASSENGER';
+
 export interface CrewLead {
   id: string;
   name: string;
@@ -44,4 +46,33 @@ export interface NewResource {
   name: string;
   category: string;
   minLevel: MembershipLevel;
+}
+
+// --- Authentication ---
+
+export interface User {
+  id: string;
+  username: string;
+  passwordHash: string;
+  role: Role;
+  passengerId?: string;
+  crewLeadId?: string;
+  createdAt: string;
+}
+
+export interface NewUser {
+  username: string;
+  passwordHash: string;
+  role: Role;
+  passengerId?: string;
+  crewLeadId?: string;
+}
+
+// Safe identity carried in the JWT and returned to the client (never the hash).
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: Role;
+  passengerId?: string;
+  crewLeadId?: string;
 }

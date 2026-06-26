@@ -16,6 +16,7 @@ export interface Config {
   cors: { origin: string | string[] };
   rateLimit: { windowMs: number; max: number };
   db: { path: string };
+  jwt: { secret: string; expiresIn: string };
 }
 
 const config: Config = {
@@ -33,6 +34,11 @@ const config: Config = {
   db: {
     // SQLite file path; use ':memory:' for an ephemeral DB (e.g. tests).
     path: process.env.DB_PATH || 'data/prms.db',
+  },
+  jwt: {
+    // Override in production via JWT_SECRET.
+    secret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
+    expiresIn: process.env.JWT_EXPIRES_IN || '1h',
   },
 };
 
