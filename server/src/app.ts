@@ -50,6 +50,13 @@ export function createApp(container: Container): Express {
   // Serve the static website (built React app) from <repo-root>/public.
   app.use(express.static(publicDir));
 
+  // SPA fallback: serve index.html for non-API GET routes so client-side
+  // routing (e.g. /resources) works on direct load / refresh.
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(publicDir, 'index.html'));
+  });
+
   // 404 and error handling (must be last).
   app.use(notFound);
   app.use(errorHandler);

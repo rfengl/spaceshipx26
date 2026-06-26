@@ -25,15 +25,15 @@ const PASSENGERS: NewPassenger[] = [
   { name: 'Idris Cole', membershipLevel: 'PLATINUM' },
 ];
 
-// Base ship inventory, categorized by minimum required tier (from the brief).
+// Base ship inventory, by minimum required tier (from the brief).
 const RESOURCES: NewResource[] = [
-  { name: 'Food Supply Station', category: 'Food', minLevel: 'SILVER' },
-  { name: 'Sleeping Pod', category: 'Rest', minLevel: 'SILVER' },
-  { name: 'Basic Hygiene Pod', category: 'Hygiene', minLevel: 'SILVER' },
-  { name: 'Private Cabin', category: 'Rest', minLevel: 'GOLD' },
-  { name: 'Advanced Medical Bay', category: 'Medical', minLevel: 'GOLD' },
-  { name: 'Luxury Oxygen Pod', category: 'Oxygen', minLevel: 'PLATINUM' },
-  { name: 'VIP Rec Deck', category: 'Fitness', minLevel: 'PLATINUM' },
+  { name: 'Food Supply Station', minLevel: 'SILVER', maxQty: 20 },
+  { name: 'Sleeping Pod', minLevel: 'SILVER', maxQty: 50 },
+  { name: 'Basic Hygiene Pod', minLevel: 'SILVER', maxQty: 30 },
+  { name: 'Private Cabin', minLevel: 'GOLD', maxQty: 10 },
+  { name: 'Advanced Medical Bay', minLevel: 'GOLD', maxQty: 5 },
+  { name: 'Luxury Oxygen Pod', minLevel: 'PLATINUM', maxQty: 8 },
+  { name: 'VIP Rec Deck', minLevel: 'PLATINUM', maxQty: 4 },
 ];
 
 /**

@@ -41,8 +41,8 @@ test('passenger repository: create and change membership tier', () => {
 
 test('resource repository: active filter and decommission', () => {
   const repo = new SqliteResourceRepository(db);
-  const pod = repo.create({ name: 'Luxury O2 Pod', category: 'oxygen', minLevel: 'PLATINUM' });
-  repo.create({ name: 'Food Station', category: 'food', minLevel: 'SILVER' });
+  const pod = repo.create({ name: 'Luxury O2 Pod', minLevel: 'PLATINUM', maxQty: 8 });
+  repo.create({ name: 'Food Station', minLevel: 'SILVER', maxQty: 20 });
 
   assert.equal(repo.findActive().length, 2);
   const decommissioned = repo.deactivate(pod.id);
@@ -65,7 +65,7 @@ test('usage log repository records usage and cascades on passenger delete', () =
   const usage = new SqliteUsageLogRepository(db);
 
   const p = passengers.create({ name: 'Nova', membershipLevel: 'GOLD' });
-  const r = resources.create({ name: 'Adv. Medical Bay', category: 'medical', minLevel: 'GOLD' });
+  const r = resources.create({ name: 'Adv. Medical Bay', minLevel: 'GOLD', maxQty: 5 });
 
   usage.record({ passengerId: p.id, resourceId: r.id });
   usage.record({ passengerId: p.id, resourceId: r.id });

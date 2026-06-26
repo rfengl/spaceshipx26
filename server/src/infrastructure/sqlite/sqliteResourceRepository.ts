@@ -2,14 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 import type { DB } from '../../db/connection.js';
 import type { MembershipLevel } from '../../domain/membership.js';
-import type { ResourceRepository } from '../../domain/ports/resourceRepository.js';
+import type {
+  ResourceRepository,
+  ResourceUpdate,
+} from '../../domain/ports/resourceRepository.js';
 import type { NewResource, Resource } from '../../domain/models.js';
 
 interface ResourceRow {
   id: string;
   name: string;
-  category: string;
   min_level: MembershipLevel;
+  max_qty: number;
   active: number;
   created_at: string;
 }
@@ -17,8 +20,8 @@ interface ResourceRow {
 const toModel = (row: ResourceRow): Resource => ({
   id: row.id,
   name: row.name,
-  category: row.category,
   minLevel: row.min_level,
+  maxQty: row.max_qty,
   active: row.active === 1,
   createdAt: row.created_at,
 });
@@ -30,16 +33,16 @@ export class SqliteResourceRepository implements ResourceRepository {
     const row: ResourceRow = {
       id: randomUUID(),
       name: input.name,
-      category: input.category,
       min_level: input.minLevel,
+      max_qty: input.maxQty,
       active: 1,
       created_at: new Date().toISOString(),
     };
     this.db
       .prepare(
-        'INSERT INTO resources (id, name, category, min_level, active, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO resources (id, name, min_level, max_qty, active, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
-      .run(row.id, row.name, row.category, row.min_level, row.active, row.created_at);
+      .run(row.id, row.name, row.min_level, row.max_qty, row.active, row.created_at);
     return toModel(row);
   }
 
@@ -62,6 +65,21 @@ export class SqliteResourceRepository implements ResourceRepository {
       .prepare('SELECT * FROM resources WHERE active = 1 ORDER BY created_at')
       .all() as ResourceRow[];
     return rows.map(toModel);
+  }
+
+  update(id: string, changes: ResourceUpdate): Resource | null {
+    const existing = this.findById(id);
+    if (!existing) return null;
+    const name = changes.name ?? existing.name;
+    const minLevel = changes.minLevel ?? existing.minLevel;
+    const maxQty = changes.maxQty ?? existing.maxQty;
+    const active = (changes.active ?? existing.active) ? 1 : 0;
+    this.db
+      .prepare(
+        'UPDATE resources SET name = ?, min_level = ?, max_qty = ?, active = ? WHERE id = ?',
+      )
+      .run(name, minLevel, maxQty, active, id);
+    return this.findById(id);
   }
 
   deactivate(id: string): Resource | null {

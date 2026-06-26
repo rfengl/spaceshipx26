@@ -19,8 +19,8 @@ export interface Passenger {
 export interface Resource {
   id: string;
   name: string;
-  category: string;
   minLevel: MembershipLevel;
+  maxQty: number;
   active: boolean;
   createdAt: string;
 }
@@ -44,8 +44,8 @@ export interface NewPassenger {
 
 export interface NewResource {
   name: string;
-  category: string;
   minLevel: MembershipLevel;
+  maxQty: number;
 }
 
 // --- Authentication ---
