@@ -11,11 +11,14 @@
 /* ----- Cockpit shell ----- */
 .cockpit {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 2rem;
+  /* size the window column to the window itself so the panel stays balanced */
+  grid-template-columns: 240px 1fr;
+  gap: 2.5rem;
   align-items: center;
-  width: min(960px, 96vw);
-  padding: 1.75rem;
+  /* 100% (not 96vw) so the panel stays inside the page's side padding,
+     giving equal left/right margins on mobile */
+  width: min(760px, 100%);
+  padding: 1.75rem 2rem;
   border-radius: 22px;
   background: linear-gradient(160deg, rgba(40, 52, 76, 0.65), rgba(12, 16, 26, 0.85));
   border: 1px solid rgba(140, 170, 220, 0.18);
@@ -28,6 +31,8 @@
 /* ----- The window (porthole) ----- */
 .porthole {
   position: relative;
+  width: min(100%, 240px);
+  margin: 0 auto;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   overflow: hidden;
@@ -150,24 +155,25 @@
   to { opacity: 1; transform: scaleX(1.08); }
 }
 
-/* Occasional shooting star */
+/* Occasional shooting star — glowing head leads, faint tail trails behind */
 .shooting-star {
   position: absolute;
-  top: 18%;
-  left: 70%;
-  width: 120px;
+  top: 12%;
+  left: 8%;
+  width: 90px;
   height: 2px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.9), transparent);
+  /* bright head at the right (leading) end, fading tail to the left */
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95));
   border-radius: 2px;
-  transform: rotate(28deg);
+  transform: rotate(32deg);
   opacity: 0;
   animation: shoot 7s ease-in infinite;
 }
 
 @keyframes shoot {
-  0%, 82% { opacity: 0; transform: translate(0, 0) rotate(28deg); }
-  86% { opacity: 1; }
-  100% { opacity: 0; transform: translate(-260px, 150px) rotate(28deg); }
+  0%, 82% { opacity: 0; transform: translate(0, 0) rotate(32deg); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(190px, 120px) rotate(32deg); }
 }
 
 /* Curved glass reflection over the whole window */
@@ -317,7 +323,7 @@
     gap: 1.5rem;
   }
   .porthole {
-    width: min(380px, 80vw);
+    width: min(210px, 64vw);
     margin: 0 auto;
   }
 }

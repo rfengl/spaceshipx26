@@ -1,4 +1,4 @@
-import './App.css';
+import './Dashboard.css';
 
 interface Props {
   pilot: string;

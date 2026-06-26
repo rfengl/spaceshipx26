@@ -15,6 +15,7 @@ export interface Config {
   host: string;
   cors: { origin: string | string[] };
   rateLimit: { windowMs: number; max: number };
+  db: { path: string };
 }
 
 const config: Config = {
@@ -28,6 +29,10 @@ const config: Config = {
   rateLimit: {
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     max: Number(process.env.RATE_LIMIT_MAX) || 100,
+  },
+  db: {
+    // SQLite file path; use ':memory:' for an ephemeral DB (e.g. tests).
+    path: process.env.DB_PATH || 'data/prms.db',
   },
 };
 

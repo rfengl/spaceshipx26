@@ -90,8 +90,8 @@ export default function LoginPage({ onLogin }: Props) {
           <div className="brand">
             <span className="brand-mark">🚀</span>
             <div>
-              <h1>SpaceshipX26</h1>
-              <p className="tagline">Pilot Authentication · Sector 26</p>
+              <h1>Spaceship X26</h1>
+              <p className="tagline">Pilot Authentication</p>
             </div>
           </div>
 

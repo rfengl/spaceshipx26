@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import LoginPage from './LoginPage';
-import Dashboard from './Dashboard';
+import LoginPage from './pages/Login/LoginPage';
+import Dashboard from './pages/Dashboard/Dashboard';
 
 export default function App() {
   const [pilot, setPilot] = useState<string | null>(null);

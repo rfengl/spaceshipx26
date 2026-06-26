@@ -1,5 +1,9 @@
 import app from './app.js';
 import config from './config/index.js';
+import { getDb } from './db/index.js';
+
+// Open and migrate the database before accepting traffic.
+getDb();
 
 const server = app.listen(config.port, config.host, () => {
   console.log(
