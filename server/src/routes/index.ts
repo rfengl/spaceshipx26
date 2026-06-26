@@ -4,6 +4,7 @@ import type { Container } from '../container.js';
 import healthRouter from './health.js';
 import { createAuthRouter } from './auth.js';
 import { createResourcesRouter } from './resources.js';
+import { createPassengersRouter } from './passengers.js';
 
 export function createApiRouter(
   container: Container,
@@ -20,13 +21,21 @@ export function createApiRouter(
         '/api/auth/login',
         '/api/auth/me',
         '/api/resources',
+        '/api/passengers',
       ],
     });
   });
 
   router.use('/health', healthRouter);
   router.use('/auth', createAuthRouter(container.authService, authenticate));
-  router.use('/resources', createResourcesRouter(container.resourceRepository, authenticate));
+  router.use(
+    '/resources',
+    createResourcesRouter(container.resourceRepository, authenticate),
+  );
+  router.use(
+    '/passengers',
+    createPassengersRouter(container.passengerRepository, authenticate),
+  );
 
   return router;
 }

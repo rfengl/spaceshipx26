@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import type { DB } from '../../db/connection.js';
 import type { MembershipLevel } from '../../domain/membership.js';
-import type { PassengerRepository } from '../../domain/ports/passengerRepository.js';
+import type {
+  PassengerRepository,
+  PassengerUpdate,
+} from '../../domain/ports/passengerRepository.js';
 import type { NewPassenger, Passenger } from '../../domain/models.js';
 
 interface PassengerRow {
@@ -41,9 +44,9 @@ export class SqlitePassengerRepository implements PassengerRepository {
   }
 
   findById(id: string): Passenger | null {
-    const row = this.db
-      .prepare('SELECT * FROM passengers WHERE id = ?')
-      .get(id) as PassengerRow | undefined;
+    const row = this.db.prepare('SELECT * FROM passengers WHERE id = ?').get(id) as
+      | PassengerRow
+      | undefined;
     return row ? toModel(row) : null;
   }
 
@@ -54,11 +57,22 @@ export class SqlitePassengerRepository implements PassengerRepository {
     return rows.map(toModel);
   }
 
+  update(id: string, changes: PassengerUpdate): Passenger | null {
+    const existing = this.findById(id);
+    if (!existing) return null;
+    const name = changes.name ?? existing.name;
+    const membershipLevel = changes.membershipLevel ?? existing.membershipLevel;
+    this.db
+      .prepare(
+        'UPDATE passengers SET name = ?, membership_level = ?, updated_at = ? WHERE id = ?',
+      )
+      .run(name, membershipLevel, new Date().toISOString(), id);
+    return this.findById(id);
+  }
+
   setMembershipLevel(id: string, level: MembershipLevel): Passenger | null {
     const changed = this.db
-      .prepare(
-        'UPDATE passengers SET membership_level = ?, updated_at = ? WHERE id = ?',
-      )
+      .prepare('UPDATE passengers SET membership_level = ?, updated_at = ? WHERE id = ?')
       .run(level, new Date().toISOString(), id).changes;
     return changed > 0 ? this.findById(id) : null;
   }

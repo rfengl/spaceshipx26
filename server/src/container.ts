@@ -4,8 +4,10 @@ import { AuthService } from './application/authService.js';
 import type { PasswordHasher } from './domain/ports/passwordHasher.js';
 import type { TokenService } from './domain/ports/tokenService.js';
 import type { ResourceRepository } from './domain/ports/resourceRepository.js';
+import type { PassengerRepository } from './domain/ports/passengerRepository.js';
 import { SqliteUserRepository } from './infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from './infrastructure/sqlite/sqliteResourceRepository.js';
+import { SqlitePassengerRepository } from './infrastructure/sqlite/sqlitePassengerRepository.js';
 import { BcryptPasswordHasher } from './infrastructure/security/bcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/jwtTokenService.js';
 
@@ -19,6 +21,7 @@ export interface Container {
   tokenService: TokenService;
   authService: AuthService;
   resourceRepository: ResourceRepository;
+  passengerRepository: PassengerRepository;
 }
 
 export function buildContainer(db: DB): Container {
@@ -27,6 +30,13 @@ export function buildContainer(db: DB): Container {
   const userRepository = new SqliteUserRepository(db);
   const authService = new AuthService(userRepository, passwordHasher, tokenService);
   const resourceRepository = new SqliteResourceRepository(db);
+  const passengerRepository = new SqlitePassengerRepository(db);
 
-  return { passwordHasher, tokenService, authService, resourceRepository };
+  return {
+    passwordHasher,
+    tokenService,
+    authService,
+    resourceRepository,
+    passengerRepository,
+  };
 }

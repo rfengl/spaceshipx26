@@ -7,29 +7,23 @@ interface Props {
 }
 
 export default function Modal({ title, onClose, children }: Props) {
+  // Lock background scroll while the modal is open. The modal can only be
+  // dismissed via the close icon or an action button (e.g. Cancel) — not by
+  // clicking the backdrop or pressing Escape.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
-      document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid animate-overlayIn place-items-center bg-[rgba(4,6,12,0.7)] p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 grid animate-overlayIn place-items-center bg-[rgba(4,6,12,0.7)] p-4 backdrop-blur-sm">
       <div
         className="w-[min(440px,100%)] animate-modalIn rounded-[14px] border border-[rgba(140,170,220,0.2)] bg-[linear-gradient(160deg,#1a2335,#0c1018)] px-[1.4rem] pb-[1.4rem] pt-5 shadow-[0_24px_70px_rgba(0,0,0,0.6)]"
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="m-0 text-[1.15rem]">{title}</h3>

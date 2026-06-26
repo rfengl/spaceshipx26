@@ -147,7 +147,7 @@ export default function ResourcesPage() {
         ) : resources.length === 0 ? (
           <p className="muted mt-3">No resources yet.</p>
         ) : (
-          <table className="resource-table mt-3">
+          <table className="data-table mt-3">
             <thead>
               <tr>
                 <th>Name</th>

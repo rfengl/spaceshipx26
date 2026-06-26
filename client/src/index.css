@@ -90,20 +90,20 @@
 
 /* Resources table — responsive "stacked card" layout on mobile uses the
    data-label attribute, which can't be expressed with utilities. */
-.resource-table {
+.data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.92rem;
 }
 
-.resource-table th,
-.resource-table td {
+.data-table th,
+.data-table td {
   text-align: left;
   padding: 0.6rem 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.resource-table th {
+.data-table th {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -111,12 +111,12 @@
   color: #7f93b8;
 }
 
-.resource-table tr.inactive td {
+.data-table tr.inactive td {
   opacity: 0.5;
 }
 
 /* Right-align numeric columns (e.g. Max qty) on desktop. */
-.resource-table .num {
+.data-table .num {
   text-align: right;
 }
 
@@ -130,19 +130,19 @@
 }
 
 @media (max-width: 640px) {
-  .resource-table thead {
+  .data-table thead {
     display: none;
   }
 
-  .resource-table,
-  .resource-table tbody,
-  .resource-table tr,
-  .resource-table td {
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
     display: block;
     width: 100%;
   }
 
-  .resource-table tr {
+  .data-table tr {
     margin-bottom: 0.85rem;
     padding: 0.4rem 0.85rem;
     border: 1px solid rgba(255, 255, 255, 0.09);
@@ -150,7 +150,7 @@
     background: rgba(255, 255, 255, 0.02);
   }
 
-  .resource-table td {
+  .data-table td {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -159,11 +159,11 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   }
 
-  .resource-table tr td:last-child {
+  .data-table tr td:last-child {
     border-bottom: 0;
   }
 
-  .resource-table td::before {
+  .data-table td::before {
     content: attr(data-label);
     font-size: 0.7rem;
     letter-spacing: 0.06em;
@@ -171,14 +171,14 @@
     color: #7f93b8;
   }
 
-  .resource-table td.row-actions {
+  .data-table td.row-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
     gap: 1rem;
     padding-top: 0.6rem;
   }
 
-  .resource-table td.row-actions::before {
+  .data-table td.row-actions::before {
     display: none;
   }
 

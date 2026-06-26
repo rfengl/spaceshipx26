@@ -24,3 +24,16 @@ export interface NewResource {
   minLevel: MembershipLevel;
   maxQty: number;
 }
+
+export interface Passenger {
+  id: string;
+  name: string;
+  membershipLevel: MembershipLevel;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface NewPassenger {
+  name: string;
+  membershipLevel: MembershipLevel;
+}
