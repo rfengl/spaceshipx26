@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
@@ -61,7 +62,15 @@ export default function ResourcesPage() {
 
   const [searchParams] = useSearchParams();
   const focusId = searchParams.get('focus');
-  const focusRef = useRef<HTMLDivElement | null>(null);
+  // The focused resource can be a card (xs/sm) or a table row (md+), so the ref
+  // is a generic element set via callback on whichever view is rendered.
+  const focusRef = useRef<HTMLElement | null>(null);
+  const setFocusRef = (el: HTMLElement | null) => {
+    focusRef.current = el;
+  };
+
+  // Table on md and above; card grid on xs / sm.
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -320,78 +329,149 @@ export default function ResourcesPage() {
               <p className="muted mt-3">No resources match “{query}”.</p>
             ) : (
               <>
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {paged.map((r) => {
-                    const full = r.remainingQty >= r.maxQty;
-                    const focused = r.id === focusId;
-                    return (
-                      <div
-                        key={r.id}
-                        ref={focused ? focusRef : undefined}
-                        className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
-                          r.remainingQty,
-                          r.maxQty,
-                        )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''}`}
-                      >
-                        {/* Dim only the info when decommissioned — the action
-                            buttons (esp. Recommission) stay fully clickable. */}
-                        <div
-                          className={`flex flex-col gap-2 ${
-                            r.isDecommissioned ? 'opacity-60' : ''
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
-                            <span className={`tier tier-${r.minLevel}`}>
-                              {r.minLevel}
-                            </span>
-                          </div>
-                          <div className="flex items-baseline justify-between gap-2">
-                            <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
-                              <strong className="text-[1.05rem] text-[#e8eefc]">
-                                {r.remainingQty}
-                              </strong>{' '}
-                              / {r.maxQty} in stock
-                            </p>
-                            <span className="text-[0.8rem] text-[#9fb3d8]">
+                {isDesktop ? (
+                  <table className="data-table mt-4">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Min tier</th>
+                        <th className="num">Stock</th>
+                        <th>Status</th>
+                        {isCrew && <th aria-label="Actions" />}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paged.map((r) => {
+                        const full = r.remainingQty >= r.maxQty;
+                        const focused = r.id === focusId;
+                        return (
+                          <tr
+                            key={r.id}
+                            ref={focused ? setFocusRef : undefined}
+                            className={focused ? 'bg-[rgba(90,208,255,0.1)]' : ''}
+                          >
+                            <td data-label="Name">{r.name}</td>
+                            <td data-label="Min tier">
+                              <span className={`tier tier-${r.minLevel}`}>
+                                {r.minLevel}
+                              </span>
+                            </td>
+                            <td className="num" data-label="Stock">
+                              {r.remainingQty} / {r.maxQty}
+                            </td>
+                            <td data-label="Status">
                               {r.isDecommissioned ? 'Decommissioned' : 'Active'}
-                            </span>
+                            </td>
+                            {isCrew && (
+                              <td className="row-actions">
+                                <button
+                                  className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
+                                  disabled={r.isDecommissioned || full}
+                                  title={full ? 'Already at maximum' : undefined}
+                                  onClick={() => openRefill(r)}
+                                >
+                                  Refill
+                                </button>
+                                <button className="link-btn" onClick={() => openEdit(r)}>
+                                  Edit
+                                </button>
+                                <button
+                                  className={`link-btn ${
+                                    r.isDecommissioned
+                                      ? 'font-semibold text-[#8ef5b0]'
+                                      : ''
+                                  }`}
+                                  onClick={() => void toggleDecommission(r)}
+                                >
+                                  {r.isDecommissioned ? 'Recommission' : 'Decommission'}
+                                </button>
+                                <button
+                                  className="link-btn text-[#ff9d9d]"
+                                  onClick={() => setDeleting(r)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {paged.map((r) => {
+                      const full = r.remainingQty >= r.maxQty;
+                      const focused = r.id === focusId;
+                      return (
+                        <div
+                          key={r.id}
+                          ref={focused ? setFocusRef : undefined}
+                          className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
+                            r.remainingQty,
+                            r.maxQty,
+                          )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''}`}
+                        >
+                          {/* Dim only the info when decommissioned — the action
+                            buttons (esp. Recommission) stay fully clickable. */}
+                          <div
+                            className={`flex flex-col gap-2 ${
+                              r.isDecommissioned ? 'opacity-60' : ''
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
+                              <span className={`tier tier-${r.minLevel}`}>
+                                {r.minLevel}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
+                                <strong className="text-[1.05rem] text-[#e8eefc]">
+                                  {r.remainingQty}
+                                </strong>{' '}
+                                / {r.maxQty} in stock
+                              </p>
+                              <span className="text-[0.8rem] text-[#9fb3d8]">
+                                {r.isDecommissioned ? 'Decommissioned' : 'Active'}
+                              </span>
+                            </div>
                           </div>
-                        </div>
 
-                        {isCrew && (
-                          <div className="row-actions mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2">
-                            <button
-                              className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
-                              disabled={r.isDecommissioned || full}
-                              title={full ? 'Already at maximum' : undefined}
-                              onClick={() => openRefill(r)}
-                            >
-                              Refill
-                            </button>
-                            <button className="link-btn" onClick={() => openEdit(r)}>
-                              Edit
-                            </button>
-                            <button
-                              className={`link-btn ${
-                                r.isDecommissioned ? 'font-semibold text-[#8ef5b0]' : ''
-                              }`}
-                              onClick={() => void toggleDecommission(r)}
-                            >
-                              {r.isDecommissioned ? 'Recommission' : 'Decommission'}
-                            </button>
-                            <button
-                              className="link-btn text-[#ff9d9d]"
-                              onClick={() => setDeleting(r)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                          {isCrew && (
+                            <div className="row-actions mt-auto flex flex-wrap justify-end gap-x-3 gap-y-1 pt-2">
+                              <button
+                                className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
+                                disabled={r.isDecommissioned || full}
+                                title={full ? 'Already at maximum' : undefined}
+                                onClick={() => openRefill(r)}
+                              >
+                                Refill
+                              </button>
+                              <button className="link-btn" onClick={() => openEdit(r)}>
+                                Edit
+                              </button>
+                              <button
+                                className={`link-btn ${
+                                  r.isDecommissioned ? 'font-semibold text-[#8ef5b0]' : ''
+                                }`}
+                                onClick={() => void toggleDecommission(r)}
+                              >
+                                {r.isDecommissioned ? 'Recommission' : 'Decommission'}
+                              </button>
+                              <button
+                                className="link-btn text-[#ff9d9d]"
+                                onClick={() => setDeleting(r)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
                   <label className="flex items-center gap-2 text-[0.8rem] text-[#9fb3d8]">
