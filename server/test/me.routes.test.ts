@@ -161,3 +161,85 @@ test('using out-of-stock returns 409 and no-access returns 403', async () => {
     assert.equal(forbidden.status, 403);
   });
 });
+
+const loginStatus = async (base: string, username: string, password: string) =>
+  (
+    await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+  ).status;
+
+test('a user can edit their own profile but not their membership tier', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const nova = await loginUser(base, 'nova.reyes');
+
+    const profile = (
+      await (
+        await fetch(`${base}/api/me/profile`, { headers: bearer(nova.token) })
+      ).json()
+    ).data;
+    assert.equal(profile.username, 'nova.reyes');
+    assert.equal(profile.membershipLevel, 'SILVER');
+
+    // Update name/username/password and *try* to change tier — tier must be ignored.
+    const updated = await fetch(`${base}/api/me/profile`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...bearer(nova.token) },
+      body: JSON.stringify({
+        name: 'Nova R',
+        username: 'nova.r',
+        password: 'newpass1',
+        membershipLevel: 'PLATINUM',
+        currentPassword: DEMO_PASSWORD,
+      }),
+    });
+    assert.equal(updated.status, 200);
+    const data = (await updated.json()).data;
+    assert.equal(data.username, 'nova.r');
+    assert.equal(data.name, 'Nova R');
+    assert.equal(data.membershipLevel, 'SILVER'); // unchanged
+
+    assert.equal(await loginStatus(base, 'nova.r', 'newpass1'), 200);
+  });
+});
+
+test('profile update requires the correct current access code', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const nova = await loginUser(base, 'nova.reyes');
+
+    // Missing current access code → 400
+    const missing = await fetch(`${base}/api/me/profile`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...bearer(nova.token) },
+      body: JSON.stringify({ name: 'Nope' }),
+    });
+    assert.equal(missing.status, 400);
+
+    // Wrong current access code → 401
+    const wrong = await fetch(`${base}/api/me/profile`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...bearer(nova.token) },
+      body: JSON.stringify({ name: 'Nope', currentPassword: 'wrongpass' }),
+    });
+    assert.equal(wrong.status, 401);
+  });
+});
+
+test('profile username conflict is rejected (409); profile requires auth (401)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const nova = await loginUser(base, 'nova.reyes');
+    const conflict = await fetch(`${base}/api/me/profile`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...bearer(nova.token) },
+      body: JSON.stringify({ username: 'milo.chen', currentPassword: DEMO_PASSWORD }), // taken
+    });
+    assert.equal(conflict.status, 409);
+
+    assert.equal((await fetch(`${base}/api/me/profile`)).status, 401);
+  });
+});

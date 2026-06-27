@@ -32,7 +32,15 @@ export function createApiRouter(
 
   router.use('/health', healthRouter);
   router.use('/auth', createAuthRouter(container.authService, authenticate));
-  router.use('/me', createMeRouter(container.usageService, authenticate));
+  router.use(
+    '/me',
+    createMeRouter(
+      container.usageService,
+      container.userRepository,
+      container.passwordHasher,
+      authenticate,
+    ),
+  );
   router.use(
     '/resources',
     createResourcesRouter(container.resourceRepository, authenticate),

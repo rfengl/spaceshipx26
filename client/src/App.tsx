@@ -8,6 +8,7 @@ import PassengerDashboard from './pages/PassengerDashboard/PassengerDashboard';
 import ResourcesPage from './pages/Resources/ResourcesPage';
 import PassengersPage from './pages/Passengers/PassengersPage';
 import CrewLeadsPage from './pages/CrewLeads/CrewLeadsPage';
+import ProfilePage from './pages/Profile/ProfilePage';
 import { useAuth } from './hooks/useAuth';
 import { loadStoredUser, logout, fetchMe } from './api/auth';
 import { getToken } from './api/client';
@@ -66,10 +67,22 @@ export default function App() {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      setUser(await fetchMe());
+    } catch {
+      // 401 is handled by the API client; ignore other (e.g. offline) errors.
+    }
+  };
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout user={user} onLogout={handleLogout} />}>
+        <Route
+          element={
+            <Layout user={user} onLogout={handleLogout} refreshUser={refreshUser} />
+          }
+        >
           <Route index element={<Home />} />
           <Route
             path="resources"
@@ -88,6 +101,7 @@ export default function App() {
             }
           />
           <Route path="crew-leads" element={<CrewLeadsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
