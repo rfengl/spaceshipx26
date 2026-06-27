@@ -123,3 +123,76 @@ test('resource routes require authentication (401)', async () => {
     assert.equal(res.status, 401);
   });
 });
+
+const findResource = async (base: string, token: string, name: string) => {
+  const { data } = await (
+    await fetch(`${base}/api/resources`, { headers: authJson(token) })
+  ).json();
+  return data.find((r: { name: string }) => r.name === name);
+};
+
+test('crew lead can refill a resource, capped at its maximum', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const cabin = await findResource(base, token, 'Private Cabin'); // 3 / 10
+
+    const ok = await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({ amount: 5 }),
+    });
+    assert.equal(ok.status, 200);
+    const { data: refilled } = await ok.json();
+    assert.equal(refilled.remainingQty, 8); // 3 + 5
+
+    // Refilling beyond the max (8 + 5 > 10) is rejected and leaves stock intact.
+    const tooMuch = await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({ amount: 5 }),
+    });
+    assert.equal(tooMuch.status, 400);
+    const after = await findResource(base, token, 'Private Cabin');
+    assert.equal(after.remainingQty, 8);
+  });
+});
+
+test('refill rejects a non-positive amount (400)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const cabin = await findResource(base, token, 'Private Cabin');
+    const res = await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({ amount: 0 }),
+    });
+    assert.equal(res.status, 400);
+  });
+});
+
+test('a passenger cannot refill resources (403) and unauth is rejected (401)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const crew = await tokenFor(base, 'ada.lovelace');
+    const cabin = await findResource(base, crew, 'Private Cabin');
+
+    const passenger = await tokenFor(base, 'nova.reyes');
+    assert.equal(
+      (
+        await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+          method: 'POST',
+          headers: authJson(passenger),
+          body: JSON.stringify({ amount: 1 }),
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (await fetch(`${base}/api/resources/${cabin.id}/refill`, { method: 'POST' }))
+        .status,
+      401,
+    );
+  });
+});

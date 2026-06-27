@@ -4,6 +4,7 @@ import type { NewResource } from '../domain/models.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import { SqliteUserRepository } from '../infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from '../infrastructure/sqlite/sqliteResourceRepository.js';
+import { SqliteUsageLogRepository } from '../infrastructure/sqlite/sqliteUsageLogRepository.js';
 
 // Every seeded account shares this demo password (hashed before storage).
 export const DEMO_PASSWORD = 'mars2026';
@@ -37,6 +38,15 @@ const RESOURCES: NewResource[] = [
   { name: 'VIP Rec Deck', minLevel: 'PLATINUM', maxQty: 4, remainingQty: 4 },
 ];
 
+// Simulated past usage (number of uses) so the crew "high demand" report has data.
+const USAGE_DEMAND: Record<string, number> = {
+  'Sleeping Pod': 14,
+  'Food Supply Station': 9,
+  'Luxury Oxygen Pod': 6,
+  'Private Cabin': 4,
+  'Advanced Medical Bay': 2,
+};
+
 /**
  * Populates the database with starter data: 3 crew leads + 6 passengers (all
  * users) and the base resource inventory. Idempotent — does nothing if crew
@@ -52,6 +62,7 @@ export async function seedDatabase(
   }
 
   const resources = new SqliteResourceRepository(db);
+  const usageLogs = new SqliteUsageLogRepository(db);
 
   // Hash once (all demo accounts share the same password) — bcrypt is async,
   // so this must happen before the synchronous better-sqlite3 transaction.
@@ -67,16 +78,33 @@ export async function seedDatabase(
         isCrewLead: true,
       });
     }
+
+    // Attribute the simulated usage to the last passenger (kept distinct so
+    // other passengers' usage histories stay clean for tests/demos).
+    let usageUserId = '';
     for (const passenger of PASSENGERS) {
-      users.create({
+      usageUserId = users.create({
         username: handle(passenger.name),
         passwordHash,
         name: passenger.name,
         membershipLevel: passenger.membershipLevel,
         isCrewLead: false,
-      });
+      }).id;
     }
-    for (const resource of RESOURCES) resources.create(resource);
+
+    const resourceIdByName = new Map<string, string>();
+    for (const resource of RESOURCES) {
+      resourceIdByName.set(resource.name, resources.create(resource).id);
+    }
+
+    // Simulated past usage so the crew "high demand" report has data.
+    for (const [name, uses] of Object.entries(USAGE_DEMAND)) {
+      const resourceId = resourceIdByName.get(name);
+      if (!resourceId) continue;
+      for (let i = 0; i < uses; i += 1) {
+        usageLogs.record({ userId: usageUserId, resourceId });
+      }
+    }
   });
   insertAll();
 

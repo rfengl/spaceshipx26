@@ -8,6 +8,7 @@ import type {
   ResourceRepository,
   ResourceUpdate,
 } from '../domain/ports/resourceRepository.js';
+import type { InventoryService } from '../application/inventoryService.js';
 import type { HttpError } from '../types.js';
 
 const badRequest = (message: string): HttpError => {
@@ -63,6 +64,7 @@ function validateUpdate(body: unknown): ResourceUpdate {
 
 export function createResourcesRouter(
   resources: ResourceRepository,
+  inventory: InventoryService,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
@@ -90,6 +92,19 @@ export function createResourcesRouter(
       const updated = resources.update(req.params.id, validateUpdate(req.body));
       if (!updated) throw notFound();
       res.json({ data: updated });
+    }),
+  );
+
+  router.post(
+    '/:id/refill',
+    asyncHandler(async (req, res) => {
+      const { amount } = (req.body ?? {}) as Record<string, unknown>;
+      const { resource } = inventory.refill(
+        req.user!.id,
+        req.params.id,
+        amount as number,
+      );
+      res.json({ data: resource });
     }),
   );
 

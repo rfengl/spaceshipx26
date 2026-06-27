@@ -3,6 +3,7 @@ import type { DB } from './db/connection.js';
 import { AuthService } from './application/authService.js';
 import { CrewLeadService } from './application/crewLeadService.js';
 import { UsageService } from './application/usageService.js';
+import { InventoryService } from './application/inventoryService.js';
 import type { PasswordHasher } from './domain/ports/passwordHasher.js';
 import type { TokenService } from './domain/ports/tokenService.js';
 import type { ResourceRepository } from './domain/ports/resourceRepository.js';
@@ -11,6 +12,7 @@ import { SqliteUserRepository } from './infrastructure/sqlite/sqliteUserReposito
 import { SqliteResourceRepository } from './infrastructure/sqlite/sqliteResourceRepository.js';
 import { SqliteChangeRequestRepository } from './infrastructure/sqlite/sqliteChangeRequestRepository.js';
 import { SqliteUsageLogRepository } from './infrastructure/sqlite/sqliteUsageLogRepository.js';
+import { SqliteRefillLogRepository } from './infrastructure/sqlite/sqliteRefillLogRepository.js';
 import { BcryptPasswordHasher } from './infrastructure/security/bcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/jwtTokenService.js';
 
@@ -25,6 +27,7 @@ export interface Container {
   authService: AuthService;
   crewLeadService: CrewLeadService;
   usageService: UsageService;
+  inventoryService: InventoryService;
   userRepository: UserRepository;
   resourceRepository: ResourceRepository;
 }
@@ -37,6 +40,7 @@ export function buildContainer(db: DB): Container {
   const resourceRepository = new SqliteResourceRepository(db);
   const changeRequestRepository = new SqliteChangeRequestRepository(db);
   const usageLogRepository = new SqliteUsageLogRepository(db);
+  const refillLogRepository = new SqliteRefillLogRepository(db);
 
   const authService = new AuthService(userRepository, passwordHasher, tokenService);
   const crewLeadService = new CrewLeadService(
@@ -50,6 +54,11 @@ export function buildContainer(db: DB): Container {
     usageLogRepository,
     db,
   );
+  const inventoryService = new InventoryService(
+    resourceRepository,
+    refillLogRepository,
+    db,
+  );
 
   return {
     passwordHasher,
@@ -57,6 +66,7 @@ export function buildContainer(db: DB): Container {
     authService,
     crewLeadService,
     usageService,
+    inventoryService,
     userRepository,
     resourceRepository,
   };

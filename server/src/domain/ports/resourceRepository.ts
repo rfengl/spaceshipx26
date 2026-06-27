@@ -18,5 +18,10 @@ export interface ResourceRepository {
   deactivate(id: string): Resource | null;
   /** Atomically consume one unit; null if not found or already at zero. */
   decrementRemaining(id: string): Resource | null;
+  /**
+   * Atomically add `amount` units to remaining stock without exceeding maxQty.
+   * Returns null if not found or the increase would overflow the cap.
+   */
+  addRemaining(id: string, amount: number): Resource | null;
   delete(id: string): boolean;
 }

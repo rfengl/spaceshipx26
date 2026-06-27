@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { DB } from '../../db/connection.js';
 import type {
   RecordUsage,
+  ResourceDemand,
   UsageLogRepository,
 } from '../../domain/ports/usageLogRepository.js';
 import type { UsageLog } from '../../domain/models.js';
@@ -51,5 +52,17 @@ export class SqliteUsageLogRepository implements UsageLogRepository {
       .prepare('SELECT * FROM usage_logs ORDER BY used_at')
       .all() as UsageLogRow[];
     return rows.map(toModel);
+  }
+
+  topResources(limit: number): ResourceDemand[] {
+    return this.db
+      .prepare(
+        `SELECT resource_id AS resourceId, COUNT(*) AS uses
+         FROM usage_logs
+         GROUP BY resource_id
+         ORDER BY uses DESC, resource_id
+         LIMIT ?`,
+      )
+      .all(limit) as ResourceDemand[];
   }
 }

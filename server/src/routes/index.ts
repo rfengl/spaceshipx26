@@ -7,6 +7,7 @@ import { createResourcesRouter } from './resources.js';
 import { createPassengersRouter } from './passengers.js';
 import { createCrewLeadsRouter } from './crewLeads.js';
 import { createMeRouter } from './me.js';
+import { createReportsRouter } from './reports.js';
 
 export function createApiRouter(
   container: Container,
@@ -43,7 +44,11 @@ export function createApiRouter(
   );
   router.use(
     '/resources',
-    createResourcesRouter(container.resourceRepository, authenticate),
+    createResourcesRouter(
+      container.resourceRepository,
+      container.inventoryService,
+      authenticate,
+    ),
   );
   router.use(
     '/passengers',
@@ -57,6 +62,7 @@ export function createApiRouter(
     '/crew-leads',
     createCrewLeadsRouter(container.crewLeadService, authenticate),
   );
+  router.use('/reports', createReportsRouter(container.usageService, authenticate));
 
   return router;
 }

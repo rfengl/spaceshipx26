@@ -62,6 +62,14 @@ export interface UsageLog {
   usedAt: string;
 }
 
+export interface RefillLog {
+  id: string;
+  userId: string;
+  resourceId: string;
+  amount: number;
+  refilledAt: string;
+}
+
 // Identity carried in the JWT. `role` is derived from isCrewLead at login.
 export interface AuthUser {
   id: string;

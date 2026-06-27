@@ -5,6 +5,8 @@ import { createDatabase, migrate, type DB } from '../src/db/index.js';
 import { SqliteUserRepository } from '../src/infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from '../src/infrastructure/sqlite/sqliteResourceRepository.js';
 import { SqliteUsageLogRepository } from '../src/infrastructure/sqlite/sqliteUsageLogRepository.js';
+import { SqliteRefillLogRepository } from '../src/infrastructure/sqlite/sqliteRefillLogRepository.js';
+import { InventoryService } from '../src/application/inventoryService.js';
 
 let db: DB;
 
@@ -71,6 +73,54 @@ test('membership_level CHECK constraint rejects invalid tiers', () => {
       )
       .run(),
   );
+});
+
+test('addRemaining tops up stock but never above the maximum', () => {
+  const repo = new SqliteResourceRepository(db);
+  const pod = repo.create({
+    name: 'O2 Pod',
+    minLevel: 'PLATINUM',
+    maxQty: 8,
+    remainingQty: 3,
+  });
+
+  assert.equal(repo.addRemaining(pod.id, 4)?.remainingQty, 7);
+  // 7 + 2 = 9 > 8, so the increment is refused atomically (null, stock unchanged).
+  assert.equal(repo.addRemaining(pod.id, 2), null);
+  assert.equal(repo.findById(pod.id)?.remainingQty, 7);
+});
+
+test('inventory service refills and writes an audit log', () => {
+  const users = new SqliteUserRepository(db);
+  const resources = new SqliteResourceRepository(db);
+  const refillLogs = new SqliteRefillLogRepository(db);
+  const inventory = new InventoryService(resources, refillLogs, db);
+
+  const crew = users.create({
+    username: 'ada',
+    passwordHash: 'h',
+    name: 'Ada',
+    membershipLevel: 'PLATINUM',
+    isCrewLead: true,
+  });
+  const cabin = resources.create({
+    name: 'Private Cabin',
+    minLevel: 'GOLD',
+    maxQty: 10,
+    remainingQty: 3,
+  });
+
+  const { resource } = inventory.refill(crew.id, cabin.id, 4);
+  assert.equal(resource.remainingQty, 7);
+
+  const logs = refillLogs.findByResource(cabin.id);
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].userId, crew.id);
+  assert.equal(logs[0].amount, 4);
+
+  // Over-cap refill throws and leaves the audit trail untouched.
+  assert.throws(() => inventory.refill(crew.id, cabin.id, 99));
+  assert.equal(refillLogs.findByResource(cabin.id).length, 1);
 });
 
 test('usage log records usage and cascades when the user is deleted', () => {

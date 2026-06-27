@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal/Modal';
@@ -9,6 +9,7 @@ import {
   createResource,
   updateResource,
   deleteResource,
+  refillResource,
 } from '../../api/resources';
 import type { MembershipLevel, NewResource, Resource } from '../../types';
 
@@ -19,9 +20,21 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went
 
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
 
+// Colour cards by remaining stock so the worst shortages stand out.
+function stockCard(remaining: number, max: number) {
+  const ratio = max > 0 ? remaining / max : 0;
+  if (ratio < 1 / 3) return 'border-[rgba(255,99,99,0.5)] bg-[rgba(255,80,80,0.12)]';
+  if (ratio < 0.5) return 'border-[rgba(255,200,80,0.5)] bg-[rgba(255,200,80,0.11)]';
+  return 'border-white/[0.08] bg-white/[0.04]';
+}
+
 export default function ResourcesPage() {
   const { user } = useAuth();
   const isCrew = user.role === 'CREW_LEAD';
+
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get('focus');
+  const focusRef = useRef<HTMLDivElement | null>(null);
 
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +44,10 @@ export default function ResourcesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewResource>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+
+  const [refilling, setRefilling] = useState<Resource | null>(null);
+  const [refillAmount, setRefillAmount] = useState(1);
+  const [refillBusy, setRefillBusy] = useState(false);
 
   const [deleting, setDeleting] = useState<Resource | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -50,6 +67,13 @@ export default function ResourcesPage() {
   useEffect(() => {
     void refresh();
   }, []);
+
+  // Scroll the resource arrived-at from a dashboard shortage card into view.
+  useEffect(() => {
+    if (focusId && focusRef.current) {
+      focusRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [focusId, resources]);
 
   function openCreate() {
     setEditingId(null);
@@ -93,6 +117,28 @@ export default function ResourcesPage() {
     }
   }
 
+  function openRefill(resource: Resource) {
+    setRefilling(resource);
+    setRefillAmount(resource.maxQty - resource.remainingQty); // default: fill to max
+    setError(null);
+  }
+
+  async function handleRefill(event: FormEvent) {
+    event.preventDefault();
+    if (!refilling) return;
+    setRefillBusy(true);
+    setError(null);
+    try {
+      await refillResource(refilling.id, refillAmount);
+      setRefilling(null);
+      await refresh();
+    } catch (e) {
+      setError(errMsg(e));
+    } finally {
+      setRefillBusy(false);
+    }
+  }
+
   async function toggleActive(resource: Resource) {
     setError(null);
     try {
@@ -118,6 +164,8 @@ export default function ResourcesPage() {
     }
   }
 
+  const room = refilling ? refilling.maxQty - refilling.remainingQty : 0;
+
   return (
     <>
       <Link to="/" className="back-link">
@@ -125,7 +173,7 @@ export default function ResourcesPage() {
       </Link>
 
       <section className="card">
-        <div className="flex items-center justify-between gap-4 max-sm:mb-4">
+        <div className="flex items-center justify-between gap-4">
           <h2 className="m-0 text-[1.1rem]">Resources</h2>
           {isCrew && (
             <button className="btn" onClick={openCreate}>
@@ -134,12 +182,6 @@ export default function ResourcesPage() {
           )}
         </div>
 
-        {!isCrew && (
-          <p className="muted mt-3">
-            Read-only — resource provisioning is restricted to Crew Leads.
-          </p>
-        )}
-
         {error && <p className="error mt-3">⚠ {error}</p>}
 
         {loading && resources.length === 0 ? (
@@ -147,29 +189,45 @@ export default function ResourcesPage() {
         ) : resources.length === 0 ? (
           <p className="muted mt-3">No resources yet.</p>
         ) : (
-          <table className="data-table mt-3">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Min tier</th>
-                <th className="num">Max qty</th>
-                <th>Status</th>
-                {isCrew && <th aria-label="Actions" />}
-              </tr>
-            </thead>
-            <tbody>
-              {resources.map((r) => (
-                <tr key={r.id} className={r.active ? '' : 'inactive'}>
-                  <td data-label="Name">{r.name}</td>
-                  <td data-label="Min tier">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {resources.map((r) => {
+              const full = r.remainingQty >= r.maxQty;
+              const focused = r.id === focusId;
+              return (
+                <div
+                  key={r.id}
+                  ref={focused ? focusRef : undefined}
+                  className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
+                    r.remainingQty,
+                    r.maxQty,
+                  )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''} ${
+                    r.active ? '' : 'opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
                     <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
-                  </td>
-                  <td className="num" data-label="Max qty">
-                    {r.maxQty}
-                  </td>
-                  <td data-label="Status">{r.active ? 'Active' : 'Decommissioned'}</td>
+                  </div>
+                  <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
+                    <strong className="text-[1.05rem] text-[#e8eefc]">
+                      {r.remainingQty}
+                    </strong>{' '}
+                    / {r.maxQty} in stock
+                  </p>
+                  <p className="m-0 text-[0.8rem] text-[#9fb3d8]">
+                    {r.active ? 'Active' : 'Decommissioned'}
+                  </p>
+
                   {isCrew && (
-                    <td className="row-actions">
+                    <div className="row-actions mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2">
+                      <button
+                        className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={!r.active || full}
+                        title={full ? 'Already at maximum' : undefined}
+                        onClick={() => openRefill(r)}
+                      >
+                        Refill
+                      </button>
                       <button className="link-btn" onClick={() => openEdit(r)}>
                         Edit
                       </button>
@@ -182,12 +240,12 @@ export default function ResourcesPage() {
                       >
                         Delete
                       </button>
-                    </td>
+                    </div>
                   )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 
@@ -244,6 +302,46 @@ export default function ResourcesPage() {
               </button>
               <button type="submit" className="btn" disabled={submitting}>
                 {submitting ? 'Saving…' : editingId ? 'Save' : 'Add resource'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {refilling && (
+        <Modal title={`Refill ${refilling.name}`} onClose={() => setRefilling(null)}>
+          <form className="flex flex-col gap-3.5" onSubmit={handleRefill}>
+            <p className="muted m-0 text-[0.85rem]">
+              Currently <strong>{refilling.remainingQty}</strong> / {refilling.maxQty} in
+              stock — you can add up to <strong>{room}</strong> more.
+            </p>
+            <label className={fieldLabel}>
+              Refill amount
+              <input
+                type="number"
+                className="input"
+                min={1}
+                max={room}
+                value={refillAmount}
+                onChange={(e) =>
+                  setRefillAmount(
+                    Math.min(room, Math.max(1, Number(e.target.value) || 1)),
+                  )
+                }
+                autoFocus
+                required
+              />
+            </label>
+            <div className="mt-4 flex justify-end gap-2.5">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setRefilling(null)}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn" disabled={refillBusy}>
+                {refillBusy ? 'Refilling…' : `Add ${refillAmount}`}
               </button>
             </div>
           </form>

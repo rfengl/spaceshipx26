@@ -17,6 +17,11 @@ export interface UseResult {
   log: UsageLog;
 }
 
+export interface DemandItem {
+  resource: Resource;
+  uses: number;
+}
+
 /**
  * Resource discovery and consumption for passengers. Consuming a resource
  * atomically decrements its remaining quantity and writes an audit log
@@ -30,12 +35,36 @@ export class UsageService {
     private readonly db: DB,
   ) {}
 
-  /** Active resources accessible to the user's membership tier. */
+  /** The most-used resources (highest demand first). */
+  highDemand(limit: number): DemandItem[] {
+    return this.usageLogs
+      .topResources(limit)
+      .map((d) => {
+        const resource = this.resources.findById(d.resourceId);
+        return resource ? { resource, uses: d.uses } : null;
+      })
+      .filter((item): item is DemandItem => item !== null);
+  }
+
+  /** Active resources with the lowest remaining stock ratio (most depleted first). */
+  shortages(limit: number): Resource[] {
+    return this.resources
+      .findActive()
+      .filter((r) => r.maxQty > 0)
+      .sort((a, b) => a.remainingQty / a.maxQty - b.remainingQty / b.maxQty)
+      .slice(0, limit);
+  }
+
+  /**
+   * Resources accessible to the user's membership tier. Decommissioned
+   * resources are included (flagged inactive) so passengers can still see them
+   * marked as such; the `use` flow rejects them.
+   */
   listAvailable(userId: string): Resource[] {
     const user = this.users.findById(userId);
     if (!user) throw httpError(401, 'Account no longer exists');
     return this.resources
-      .findActive()
+      .findAll()
       .filter((r) => hasAccess(user.membershipLevel, r.minLevel));
   }
 

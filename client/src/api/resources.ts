@@ -21,6 +21,11 @@ export async function listMyResources(): Promise<Resource[]> {
   return (await apiFetch<Wrapped<Resource[]>>('/api/me/resources')).data;
 }
 
+/** Resources running lowest on stock, most depleted first (crew-lead analytics). */
+export async function getShortages(): Promise<Resource[]> {
+  return (await apiFetch<Wrapped<Resource[]>>('/api/reports/shortages')).data;
+}
+
 /** Use one unit of a resource; returns the updated resource. */
 export async function useResource(id: string): Promise<Resource> {
   return (
@@ -47,6 +52,16 @@ export async function updateResource(
     await apiFetch<Wrapped<Resource>>(`/api/resources/${id}`, {
       method: 'PUT',
       body: JSON.stringify(changes),
+    })
+  ).data;
+}
+
+/** Add stock back to a resource (crew-lead); amount cannot exceed its maximum. */
+export async function refillResource(id: string, amount: number): Promise<Resource> {
+  return (
+    await apiFetch<Wrapped<Resource>>(`/api/resources/${id}/refill`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
     })
   ).data;
 }

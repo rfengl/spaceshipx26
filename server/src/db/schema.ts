@@ -35,6 +35,17 @@ CREATE TABLE IF NOT EXISTS usage_logs (
 CREATE INDEX IF NOT EXISTS idx_usage_user     ON usage_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_resource ON usage_logs(resource_id);
 
+-- Audit trail of crew-lead resource refills.
+CREATE TABLE IF NOT EXISTS refill_logs (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  resource_id  TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+  amount       INTEGER NOT NULL CHECK (amount > 0),
+  refilled_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_refill_resource ON refill_logs(resource_id);
+
 -- A proposed crew-lead swap (demote one crew lead, promote one passenger).
 -- Stays PENDING until a different crew lead approves, keeping exactly 3.
 CREATE TABLE IF NOT EXISTS crew_lead_change_requests (

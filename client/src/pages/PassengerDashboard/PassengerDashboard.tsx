@@ -77,8 +77,16 @@ export default function PassengerDashboard() {
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {resources.map((r) => {
-            const s = stock(r.remainingQty, r.maxQty);
+            const decommissioned = !r.active;
             const out = r.remainingQty <= 0;
+            const disabled = decommissioned || out;
+            const s = decommissioned
+              ? {
+                  card: 'border-white/[0.08] bg-white/[0.03] opacity-60',
+                  label: 'Decommissioned',
+                  labelColor: 'text-[#9fb3d8]',
+                }
+              : stock(r.remainingQty, r.maxQty);
             return (
               <div
                 key={r.id}
@@ -100,13 +108,15 @@ export default function PassengerDashboard() {
                   <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
                   <button
                     className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[rgba(90,208,255,0.45)] bg-[rgba(90,208,255,0.12)] px-3.5 py-1.5 text-[0.82rem] font-medium text-[#afe3ff] transition hover:border-[#5ad0ff] hover:bg-[rgba(90,208,255,0.2)] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={out}
+                    disabled={disabled}
                     onMouseDown={() => setGrabbingId(r.id)}
                     onMouseUp={() => setGrabbingId(null)}
                     onMouseLeave={() => setGrabbingId(null)}
                     onClick={() => setPending(r)}
                   >
-                    {out ? (
+                    {decommissioned ? (
+                      'Unavailable'
+                    ) : out ? (
                       'Out of stock'
                     ) : (
                       <>
