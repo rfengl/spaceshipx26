@@ -9,6 +9,7 @@ import ResourcesPage from './pages/Resources/ResourcesPage';
 import PassengersPage from './pages/Passengers/PassengersPage';
 import CrewLeadsPage from './pages/CrewLeads/CrewLeadsPage';
 import AuditTrailPage from './pages/AuditTrail/AuditTrailPage';
+import AggregatedReportsPage from './pages/Reports/AggregatedReportsPage';
 import PersonalHistoryPage from './pages/PersonalHistory/PersonalHistoryPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import { useAuth } from './hooks/useAuth';
@@ -108,6 +109,14 @@ export default function App() {
             element={
               <RequireCrew>
                 <AuditTrailPage />
+              </RequireCrew>
+            }
+          />
+          <Route
+            path="reports"
+            element={
+              <RequireCrew>
+                <AggregatedReportsPage />
               </RequireCrew>
             }
           />

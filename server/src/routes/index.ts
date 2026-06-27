@@ -71,6 +71,7 @@ export function createApiRouter(
     createReportsRouter(
       container.usageService,
       container.auditTrailRepository,
+      container.reportingRepository,
       authenticate,
     ),
   );

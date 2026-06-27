@@ -4,14 +4,17 @@ import asyncHandler from '../utils/asyncHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import type { UsageService } from '../application/usageService.js';
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
+import type { ReportingRepository } from '../domain/ports/reportingRepository.js';
 
 /**
  * Crew-lead analytics. Exposes the highest-demand resources, the resources
- * running lowest on stock, and the full resource audit trail.
+ * running lowest on stock, the full resource audit trail, and a ship-wide
+ * summary grouped by passenger tier.
  */
 export function createReportsRouter(
   usage: UsageService,
   audit: AuditTrailRepository,
+  reporting: ReportingRepository,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
@@ -42,6 +45,14 @@ export function createReportsRouter(
     asyncHandler(async (req, res) => {
       const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 500));
       res.json({ data: audit.recent(limit) });
+    }),
+  );
+
+  // Ship-wide distribution summary, one row per passenger tier.
+  router.get(
+    '/aggregate',
+    asyncHandler(async (_req, res) => {
+      res.json({ data: reporting.tierSummary() });
     }),
   );
 

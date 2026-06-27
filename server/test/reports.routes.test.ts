@@ -212,6 +212,59 @@ test('audit trail records resource lifecycle actions (provision/decommission/del
   });
 });
 
+test('aggregate report groups passengers, resources, stock, and uses by tier', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const res = await fetch(`${base}/api/reports/aggregate`, {
+      headers: authJson(token),
+    });
+    assert.equal(res.status, 200);
+    const { data } = await res.json();
+    const byLevel = Object.fromEntries(data.map((r: { level: string }) => [r.level, r]));
+
+    // Seed: 2 passengers per tier; resources grouped by required min tier;
+    // all 35 seeded uses are attributed to a PLATINUM passenger.
+    assert.deepEqual(byLevel.SILVER, {
+      level: 'SILVER',
+      passengers: 2,
+      resources: 3,
+      capacity: 100, // 20 + 50 + 30
+      remaining: 46, // 18 + 20 + 8
+      uses: 0,
+    });
+    assert.deepEqual(byLevel.GOLD, {
+      level: 'GOLD',
+      passengers: 2,
+      resources: 2,
+      capacity: 15, // 10 + 5
+      remaining: 7, // 3 + 4
+      uses: 0,
+    });
+    assert.deepEqual(byLevel.PLATINUM, {
+      level: 'PLATINUM',
+      passengers: 2,
+      resources: 2,
+      capacity: 12, // 8 + 4
+      remaining: 7, // 3 + 4
+      uses: 35,
+    });
+  });
+});
+
+test('aggregate report is crew-lead only (403) and requires auth (401)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const passenger = await tokenFor(base, 'nova.reyes');
+    assert.equal(
+      (await fetch(`${base}/api/reports/aggregate`, { headers: authJson(passenger) }))
+        .status,
+      403,
+    );
+    assert.equal((await fetch(`${base}/api/reports/aggregate`)).status, 401);
+  });
+});
+
 test('shortages is crew-lead only (403) and requires auth (401)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {

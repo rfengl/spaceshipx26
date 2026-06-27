@@ -9,10 +9,12 @@ import type { TokenService } from './domain/ports/tokenService.js';
 import type { ResourceRepository } from './domain/ports/resourceRepository.js';
 import type { UserRepository } from './domain/ports/userRepository.js';
 import type { AuditTrailRepository } from './domain/ports/auditTrailRepository.js';
+import type { ReportingRepository } from './domain/ports/reportingRepository.js';
 import { SqliteUserRepository } from './infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from './infrastructure/sqlite/sqliteResourceRepository.js';
 import { SqliteChangeRequestRepository } from './infrastructure/sqlite/sqliteChangeRequestRepository.js';
 import { SqliteAuditTrailRepository } from './infrastructure/sqlite/sqliteAuditTrailRepository.js';
+import { SqliteReportingRepository } from './infrastructure/sqlite/sqliteReportingRepository.js';
 import { ResourceWebSocketHub } from './infrastructure/ws/resourceWebSocketHub.js';
 import { BcryptPasswordHasher } from './infrastructure/security/bcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/jwtTokenService.js';
@@ -32,6 +34,7 @@ export interface Container {
   userRepository: UserRepository;
   resourceRepository: ResourceRepository;
   auditTrailRepository: AuditTrailRepository;
+  reportingRepository: ReportingRepository;
   resourceHub: ResourceWebSocketHub;
 }
 
@@ -43,6 +46,7 @@ export function buildContainer(db: DB): Container {
   const resourceRepository = new SqliteResourceRepository(db);
   const changeRequestRepository = new SqliteChangeRequestRepository(db);
   const auditTrailRepository = new SqliteAuditTrailRepository(db);
+  const reportingRepository = new SqliteReportingRepository(db);
   const resourceHub = new ResourceWebSocketHub(tokenService, userRepository);
 
   const authService = new AuthService(userRepository, passwordHasher, tokenService);
@@ -73,6 +77,7 @@ export function buildContainer(db: DB): Container {
     userRepository,
     resourceRepository,
     auditTrailRepository,
+    reportingRepository,
     resourceHub,
   };
 }

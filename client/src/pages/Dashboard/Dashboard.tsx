@@ -29,6 +29,12 @@ const NAV_ITEMS = [
     title: 'Audit Trail',
     description: 'Every resource activity — passenger usage and crew refills.',
   },
+  {
+    to: '/reports',
+    icon: '📊',
+    title: 'Aggregated Reports',
+    description: 'Ship-wide resource distribution by passenger tier.',
+  },
 ];
 
 // Colour cards by remaining stock so the worst shortages stand out.
