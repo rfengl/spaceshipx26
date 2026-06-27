@@ -26,7 +26,7 @@ export default function Layout({ user, onLogout, refreshUser }: Props) {
           >
             {user.username} · {ROLE_LABEL[user.role]}
           </Link>
-          <button className="btn-ghost" onClick={onLogout}>
+          <button className="btn-ghost py-[0.35rem] text-[0.85rem]" onClick={onLogout}>
             Log out
           </button>
         </div>

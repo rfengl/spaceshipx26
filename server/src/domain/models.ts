@@ -57,24 +57,16 @@ export interface NewResource {
   remainingQty?: number; // defaults to maxQty (full) when omitted
 }
 
-export interface UsageLog {
-  id: string;
-  userId: string;
-  resourceId: string;
-  usedAt: string;
-}
+// Crew-lead resource lifecycle actions recorded for the audit trail.
+export type ResourceEventAction =
+  | 'PROVISION'
+  | 'DECOMMISSION'
+  | 'RECOMMISSION'
+  | 'DELETE';
 
-export interface RefillLog {
-  id: string;
-  userId: string;
-  resourceId: string;
-  amount: number;
-  refilledAt: string;
-}
-
-// A single line in the resource audit trail: a passenger use or a crew refill,
-// enriched with the actor's and resource's names for display.
-export type AuditAction = 'USE' | 'REFILL';
+// A single line in the resource audit trail: a passenger use, a crew refill, or
+// a crew lifecycle action — enriched with the actor's and resource's names.
+export type AuditAction = 'USE' | 'REFILL' | ResourceEventAction;
 
 export interface AuditEntry {
   id: string;

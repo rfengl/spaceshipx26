@@ -1,6 +1,12 @@
 import { apiFetch } from './client';
 
-export type AuditAction = 'USE' | 'REFILL';
+export type AuditAction =
+  | 'USE'
+  | 'REFILL'
+  | 'PROVISION'
+  | 'DECOMMISSION'
+  | 'RECOMMISSION'
+  | 'DELETE';
 
 export interface AuditEntry {
   id: string;

@@ -31,26 +31,23 @@ CREATE TABLE IF NOT EXISTS resources (
   created_at        TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS usage_logs (
-  id           TEXT PRIMARY KEY,
-  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  resource_id  TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
-  used_at      TEXT NOT NULL
+-- Single audit trail of every resource activity: passenger usage, crew refills,
+-- and crew lifecycle actions (provision / decommission / recommission / delete).
+-- \`amount\` is the units involved (1 for a use, N for a refill, 0 otherwise).
+CREATE TABLE IF NOT EXISTS audit_trail (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+  action      TEXT NOT NULL CHECK (
+                action IN ('USE','REFILL','PROVISION','DECOMMISSION','RECOMMISSION','DELETE')
+              ),
+  amount      INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_usage_user     ON usage_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_usage_resource ON usage_logs(resource_id);
-
--- Audit trail of crew-lead resource refills.
-CREATE TABLE IF NOT EXISTS refill_logs (
-  id           TEXT PRIMARY KEY,
-  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  resource_id  TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
-  amount       INTEGER NOT NULL CHECK (amount > 0),
-  refilled_at  TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_refill_resource ON refill_logs(resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_trail(resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_user     ON audit_trail(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action   ON audit_trail(action);
 
 -- A proposed crew-lead swap (demote one crew lead, promote one passenger).
 -- Stays PENDING until a different crew lead approves, keeping exactly 3.

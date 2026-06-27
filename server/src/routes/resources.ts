@@ -8,6 +8,7 @@ import type {
   ResourceRepository,
   ResourceUpdate,
 } from '../domain/ports/resourceRepository.js';
+import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 import type { InventoryService } from '../application/inventoryService.js';
 import type { HttpError } from '../types.js';
 
@@ -66,6 +67,7 @@ function validateUpdate(body: unknown): ResourceUpdate {
 export function createResourcesRouter(
   resources: ResourceRepository,
   inventory: InventoryService,
+  audit: AuditTrailRepository,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
@@ -83,15 +85,36 @@ export function createResourcesRouter(
   router.post(
     '/',
     asyncHandler(async (req, res) => {
-      res.status(201).json({ data: resources.create(validateNew(req.body)) });
+      const created = resources.create(validateNew(req.body));
+      audit.record({
+        userId: req.user!.id,
+        resourceId: created.id,
+        action: 'PROVISION',
+      });
+      res.status(201).json({ data: created });
     }),
   );
 
   router.put(
     '/:id',
     asyncHandler(async (req, res) => {
-      const updated = resources.update(req.params.id, validateUpdate(req.body));
+      const before = resources.findById(req.params.id);
+      if (!before) throw notFound();
+      const changes = validateUpdate(req.body);
+      const updated = resources.update(req.params.id, changes);
       if (!updated) throw notFound();
+
+      // Record a lifecycle event only when the decommission state flips.
+      if (
+        changes.isDecommissioned !== undefined &&
+        changes.isDecommissioned !== before.isDecommissioned
+      ) {
+        audit.record({
+          userId: req.user!.id,
+          resourceId: updated.id,
+          action: changes.isDecommissioned ? 'DECOMMISSION' : 'RECOMMISSION',
+        });
+      }
       res.json({ data: updated });
     }),
   );
@@ -101,6 +124,11 @@ export function createResourcesRouter(
     '/:id',
     asyncHandler(async (req, res) => {
       if (!resources.deactivate(req.params.id)) throw notFound();
+      audit.record({
+        userId: req.user!.id,
+        resourceId: req.params.id,
+        action: 'DELETE',
+      });
       res.status(204).end();
     }),
   );

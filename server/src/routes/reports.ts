@@ -3,7 +3,7 @@ import { Router, type RequestHandler } from 'express';
 import asyncHandler from '../utils/asyncHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import type { UsageService } from '../application/usageService.js';
-import type { AuditRepository } from '../domain/ports/auditRepository.js';
+import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 
 /**
  * Crew-lead analytics. Exposes the highest-demand resources, the resources
@@ -11,7 +11,7 @@ import type { AuditRepository } from '../domain/ports/auditRepository.js';
  */
 export function createReportsRouter(
   usage: UsageService,
-  audit: AuditRepository,
+  audit: AuditTrailRepository,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();

@@ -4,8 +4,7 @@ import test, { beforeEach } from 'node:test';
 import { createDatabase, migrate, type DB } from '../src/db/index.js';
 import { SqliteUserRepository } from '../src/infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from '../src/infrastructure/sqlite/sqliteResourceRepository.js';
-import { SqliteUsageLogRepository } from '../src/infrastructure/sqlite/sqliteUsageLogRepository.js';
-import { SqliteRefillLogRepository } from '../src/infrastructure/sqlite/sqliteRefillLogRepository.js';
+import { SqliteAuditTrailRepository } from '../src/infrastructure/sqlite/sqliteAuditTrailRepository.js';
 import { InventoryService } from '../src/application/inventoryService.js';
 
 let db: DB;
@@ -101,11 +100,11 @@ test('addRemaining tops up stock but never above the maximum', () => {
   assert.equal(repo.findById(pod.id)?.remainingQty, 7);
 });
 
-test('inventory service refills and writes an audit log', () => {
+test('inventory service refills and writes an audit-trail entry', () => {
   const users = new SqliteUserRepository(db);
   const resources = new SqliteResourceRepository(db);
-  const refillLogs = new SqliteRefillLogRepository(db);
-  const inventory = new InventoryService(resources, refillLogs, db);
+  const audit = new SqliteAuditTrailRepository(db);
+  const inventory = new InventoryService(resources, audit, db);
 
   const crew = users.create({
     username: 'ada',
@@ -124,20 +123,21 @@ test('inventory service refills and writes an audit log', () => {
   const { resource } = inventory.refill(crew.id, cabin.id, 4);
   assert.equal(resource.remainingQty, 7);
 
-  const logs = refillLogs.findByResource(cabin.id);
+  const logs = audit.findByResource(cabin.id);
   assert.equal(logs.length, 1);
+  assert.equal(logs[0].type, 'REFILL');
   assert.equal(logs[0].userId, crew.id);
   assert.equal(logs[0].amount, 4);
 
   // Over-cap refill throws and leaves the audit trail untouched.
   assert.throws(() => inventory.refill(crew.id, cabin.id, 99));
-  assert.equal(refillLogs.findByResource(cabin.id).length, 1);
+  assert.equal(audit.findByResource(cabin.id).length, 1);
 });
 
 test('soft-deleting a user preserves history and drops them from the roster', () => {
   const users = new SqliteUserRepository(db);
   const resources = new SqliteResourceRepository(db);
-  const usage = new SqliteUsageLogRepository(db);
+  const audit = new SqliteAuditTrailRepository(db);
 
   const u = users.create({
     username: 'tomas',
@@ -148,14 +148,14 @@ test('soft-deleting a user preserves history and drops them from the roster', ()
   });
   const r = resources.create({ name: 'Adv. Medical Bay', minLevel: 'GOLD', maxQty: 5 });
 
-  usage.record({ userId: u.id, resourceId: r.id });
-  assert.equal(usage.findByUser(u.id).length, 1);
+  audit.record({ userId: u.id, resourceId: r.id, action: 'USE', amount: 1 });
+  assert.equal(audit.findByUser(u.id).length, 1);
   assert.equal(users.findPassengers().length, 1);
 
   const deactivated = users.deactivate(u.id);
   assert.equal(deactivated?.active, false);
-  // Row (and its usage history) is preserved — no hard delete, no cascade.
-  assert.equal(usage.findAll().length, 1);
+  // Row (and its audit history) is preserved — no hard delete, no cascade.
+  assert.equal(audit.findByUser(u.id).length, 1);
   assert.equal(users.findById(u.id)?.active, false);
   // ...but they no longer appear on the active roster.
   assert.equal(users.findPassengers().length, 0);

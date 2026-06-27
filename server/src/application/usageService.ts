@@ -1,9 +1,9 @@
 import type { DB } from '../db/connection.js';
 import { hasAccess } from '../domain/membership.js';
-import type { Resource, UsageLog } from '../domain/models.js';
+import type { Resource } from '../domain/models.js';
 import type { ResourceRepository } from '../domain/ports/resourceRepository.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
-import type { UsageLogRepository } from '../domain/ports/usageLogRepository.js';
+import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 import type { HttpError } from '../types.js';
 
 const httpError = (status: number, message: string): HttpError => {
@@ -14,7 +14,6 @@ const httpError = (status: number, message: string): HttpError => {
 
 export interface UseResult {
   resource: Resource;
-  log: UsageLog;
 }
 
 export interface DemandItem {
@@ -24,21 +23,21 @@ export interface DemandItem {
 
 /**
  * Resource discovery and consumption for passengers. Consuming a resource
- * atomically decrements its remaining quantity and writes an audit log
+ * atomically decrements its remaining quantity and writes an audit-trail entry
  * (who consumed what, and when).
  */
 export class UsageService {
   constructor(
     private readonly users: UserRepository,
     private readonly resources: ResourceRepository,
-    private readonly usageLogs: UsageLogRepository,
+    private readonly audit: AuditTrailRepository,
     private readonly db: DB,
   ) {}
 
   /** The most-used resources (highest demand first). */
   highDemand(limit: number): DemandItem[] {
-    return this.usageLogs
-      .topResources(limit)
+    return this.audit
+      .topUsed(limit)
       .map((d) => {
         const resource = this.resources.findById(d.resourceId);
         return resource ? { resource, uses: d.uses } : null;
@@ -87,8 +86,8 @@ export class UsageService {
     const apply = this.db.transaction((): UseResult => {
       const updated = this.resources.decrementRemaining(resourceId);
       if (!updated) throw httpError(409, 'This resource is out of stock');
-      const log = this.usageLogs.record({ userId, resourceId });
-      return { resource: updated, log };
+      this.audit.record({ userId, resourceId, action: 'USE', amount: 1 });
+      return { resource: updated };
     });
     return apply();
   }

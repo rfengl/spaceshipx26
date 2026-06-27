@@ -1,7 +1,7 @@
 import type { DB } from '../db/connection.js';
-import type { RefillLog, Resource } from '../domain/models.js';
+import type { Resource } from '../domain/models.js';
 import type { ResourceRepository } from '../domain/ports/resourceRepository.js';
-import type { RefillLogRepository } from '../domain/ports/refillLogRepository.js';
+import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 import type { HttpError } from '../types.js';
 
 const httpError = (status: number, message: string): HttpError => {
@@ -12,17 +12,16 @@ const httpError = (status: number, message: string): HttpError => {
 
 export interface RefillResult {
   resource: Resource;
-  log: RefillLog;
 }
 
 /**
  * Crew-lead stock management. Refilling a resource atomically adds units back
- * (never above its maximum) and writes an audit log of who refilled what.
+ * (never above its maximum) and writes an audit-trail entry of who refilled what.
  */
 export class InventoryService {
   constructor(
     private readonly resources: ResourceRepository,
-    private readonly refillLogs: RefillLogRepository,
+    private readonly audit: AuditTrailRepository,
     private readonly db: DB,
   ) {}
 
@@ -48,8 +47,8 @@ export class InventoryService {
     const apply = this.db.transaction((): RefillResult => {
       const updated = this.resources.addRemaining(resourceId, amount);
       if (!updated) throw httpError(409, 'Refill would exceed the maximum quantity');
-      const log = this.refillLogs.record({ userId, resourceId, amount });
-      return { resource: updated, log };
+      this.audit.record({ userId, resourceId, action: 'REFILL', amount });
+      return { resource: updated };
     });
     return apply();
   }

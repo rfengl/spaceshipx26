@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 
 import { usePersistentState } from '../../hooks/usePersistentState';
 import Pagination from '../../components/Pagination';
-import { getAuditTrail, type AuditEntry } from '../../api/audit';
+import { getAuditTrail, type AuditAction, type AuditEntry } from '../../api/audit';
+import { listResources } from '../../api/resources';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
@@ -11,6 +12,26 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
 
 const fmt = (at: string) =>
   new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+// Display label + badge colour per activity type.
+const ACTION_META: Record<AuditAction, { label: string; cls: string }> = {
+  USE: { label: 'Used', cls: 'bg-[rgba(90,208,255,0.18)] text-[#afe3ff]' },
+  REFILL: { label: 'Refilled', cls: 'bg-[rgba(120,240,160,0.18)] text-[#8ef5b0]' },
+  PROVISION: { label: 'Provisioned', cls: 'bg-[rgba(150,170,255,0.2)] text-[#bcc8ff]' },
+  DECOMMISSION: {
+    label: 'Decommissioned',
+    cls: 'bg-[rgba(255,200,80,0.18)] text-[#ffd86b]',
+  },
+  RECOMMISSION: {
+    label: 'Recommissioned',
+    cls: 'bg-[rgba(120,240,160,0.14)] text-[#8ef5b0]',
+  },
+  DELETE: { label: 'Deleted', cls: 'bg-[rgba(255,99,99,0.18)] text-[#ff9d9d]' },
+};
+
+// Quantity shown per activity: −1 for a use, +N for a refill, nothing otherwise.
+const qtyLabel = (e: AuditEntry) =>
+  e.type === 'USE' ? '−1' : e.type === 'REFILL' ? `+${e.amount}` : '—';
 
 // Distinct {value, label} options for a filter dropdown, sorted by label.
 function options(
@@ -37,6 +58,13 @@ export default function AuditTrailPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = usePersistentState('audit.pageSize', 10);
 
+  // Resource filter options come from the live resource list (which excludes
+  // soft-deleted resources), so deleted resources aren't filterable — though
+  // their past activity still shows under "All".
+  const [resourceOptions, setResourceOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+
   useEffect(() => {
     getAuditTrail()
       .then(setEntries)
@@ -44,22 +72,26 @@ export default function AuditTrailPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Build dropdowns from the full data so they stay stable while filtering.
+  useEffect(() => {
+    listResources()
+      .then((rs) =>
+        setResourceOptions(
+          rs
+            .map((r) => ({ value: r.id, label: r.name }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        ),
+      )
+      .catch(() => setResourceOptions([]));
+  }, []);
+
+  // Passenger options come from the trail itself (so anyone with activity,
+  // including soft-deleted passengers, can be selected).
   const passengers = useMemo(
     () =>
       options(
         entries,
         (e) => e.userId,
         (e) => e.userName,
-      ),
-    [entries],
-  );
-  const resources = useMemo(
-    () =>
-      options(
-        entries,
-        (e) => e.resourceId,
-        (e) => e.resourceName,
       ),
     [entries],
   );
@@ -102,7 +134,8 @@ export default function AuditTrailPage() {
       <section className="card">
         <h2 className="m-0 text-[1.1rem]">Audit trail</h2>
         <p className="muted mt-1 text-[0.9rem]">
-          Every resource activity — passenger usage and crew refills.
+          Every resource activity — passenger usage, crew refills, and lifecycle changes
+          (provision, decommission, recommission, delete).
         </p>
 
         <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -129,7 +162,7 @@ export default function AuditTrailPage() {
               onChange={(e) => setResourceId(e.target.value)}
             >
               <option value="">All</option>
-              {resources.map((o) => (
+              {resourceOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -191,25 +224,21 @@ export default function AuditTrailPage() {
               </thead>
               <tbody>
                 {paged.map((e) => {
-                  const refill = e.type === 'REFILL';
+                  const meta = ACTION_META[e.type];
                   return (
                     <tr key={e.id}>
                       <td data-label="When">{fmt(e.at)}</td>
                       <td data-label="Activity">
                         <span
-                          className={`rounded px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] ${
-                            refill
-                              ? 'bg-[rgba(120,240,160,0.18)] text-[#8ef5b0]'
-                              : 'bg-[rgba(90,208,255,0.18)] text-[#afe3ff]'
-                          }`}
+                          className={`rounded px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] ${meta.cls}`}
                         >
-                          {refill ? 'Refilled' : 'Used'}
+                          {meta.label}
                         </span>
                       </td>
                       <td data-label="Resource">{e.resourceName}</td>
                       <td data-label="Passenger">{e.userName}</td>
                       <td className="num" data-label="Qty">
-                        {refill ? `+${e.amount}` : `−${e.amount}`}
+                        {qtyLabel(e)}
                       </td>
                     </tr>
                   );

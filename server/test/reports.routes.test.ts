@@ -154,6 +154,64 @@ test('audit trail returns usage and refill activity, newest first, with names', 
   });
 });
 
+test('audit trail records resource lifecycle actions (provision/decommission/delete)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const json = { 'content-type': 'application/json', ...authJson(token) };
+
+    // Provision
+    const created = await (
+      await fetch(`${base}/api/resources`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ name: 'Observation Deck', minLevel: 'GOLD', maxQty: 4 }),
+      })
+    ).json();
+    const id = created.data.id;
+
+    // Decommission, then recommission
+    await fetch(`${base}/api/resources/${id}`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ isDecommissioned: true }),
+    });
+    await fetch(`${base}/api/resources/${id}`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ isDecommissioned: false }),
+    });
+    // A plain edit (no decommission flip) must NOT add a lifecycle event.
+    await fetch(`${base}/api/resources/${id}`, {
+      method: 'PUT',
+      headers: json,
+      body: JSON.stringify({ name: 'Observation Lounge' }),
+    });
+    // Soft delete
+    await fetch(`${base}/api/resources/${id}`, { method: 'DELETE', headers: json });
+
+    const { data } = await (
+      await fetch(`${base}/api/reports/audit`, { headers: authJson(token) })
+    ).json();
+    const actions = data
+      .filter((e: { resourceId: string }) => e.resourceId === id)
+      .map((e: { type: string }) => e.type);
+
+    assert.deepEqual([...actions].sort(), [
+      'DECOMMISSION',
+      'DELETE',
+      'PROVISION',
+      'RECOMMISSION',
+    ]);
+    const provision = data.find(
+      (e: { resourceId: string; type: string }) =>
+        e.resourceId === id && e.type === 'PROVISION',
+    );
+    assert.equal(provision.userName, 'Ada Lovelace');
+    assert.equal(provision.resourceName, 'Observation Lounge');
+  });
+});
+
 test('shortages is crew-lead only (403) and requires auth (401)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {

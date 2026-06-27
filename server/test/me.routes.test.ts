@@ -7,7 +7,7 @@ import { createDatabase, migrate } from '../src/db/index.js';
 import { seedDatabase, DEMO_PASSWORD } from '../src/db/seed.js';
 import { buildContainer } from '../src/container.js';
 import { createApp } from '../src/app.js';
-import { SqliteUsageLogRepository } from '../src/infrastructure/sqlite/sqliteUsageLogRepository.js';
+import { SqliteAuditTrailRepository } from '../src/infrastructure/sqlite/sqliteAuditTrailRepository.js';
 
 const withServer = async (
   app: Express,
@@ -150,8 +150,9 @@ test('using a resource decrements remaining and records an audit log', async () 
     assert.equal((await res.json()).data.remainingQty, 17);
 
     // Audit trail: who consumed what
-    const logs = new SqliteUsageLogRepository(db).findByUser(nova.id);
+    const logs = new SqliteAuditTrailRepository(db).findByUser(nova.id);
     assert.equal(logs.length, 1);
+    assert.equal(logs[0].type, 'USE');
     assert.equal(logs[0].resourceId, food.id);
   });
 });

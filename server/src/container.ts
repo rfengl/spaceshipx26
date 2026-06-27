@@ -8,13 +8,11 @@ import type { PasswordHasher } from './domain/ports/passwordHasher.js';
 import type { TokenService } from './domain/ports/tokenService.js';
 import type { ResourceRepository } from './domain/ports/resourceRepository.js';
 import type { UserRepository } from './domain/ports/userRepository.js';
-import type { AuditRepository } from './domain/ports/auditRepository.js';
+import type { AuditTrailRepository } from './domain/ports/auditTrailRepository.js';
 import { SqliteUserRepository } from './infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from './infrastructure/sqlite/sqliteResourceRepository.js';
 import { SqliteChangeRequestRepository } from './infrastructure/sqlite/sqliteChangeRequestRepository.js';
-import { SqliteUsageLogRepository } from './infrastructure/sqlite/sqliteUsageLogRepository.js';
-import { SqliteRefillLogRepository } from './infrastructure/sqlite/sqliteRefillLogRepository.js';
-import { SqliteAuditRepository } from './infrastructure/sqlite/sqliteAuditRepository.js';
+import { SqliteAuditTrailRepository } from './infrastructure/sqlite/sqliteAuditTrailRepository.js';
 import { BcryptPasswordHasher } from './infrastructure/security/bcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/jwtTokenService.js';
 
@@ -32,7 +30,7 @@ export interface Container {
   inventoryService: InventoryService;
   userRepository: UserRepository;
   resourceRepository: ResourceRepository;
-  auditRepository: AuditRepository;
+  auditTrailRepository: AuditTrailRepository;
 }
 
 export function buildContainer(db: DB): Container {
@@ -42,9 +40,7 @@ export function buildContainer(db: DB): Container {
   const userRepository = new SqliteUserRepository(db);
   const resourceRepository = new SqliteResourceRepository(db);
   const changeRequestRepository = new SqliteChangeRequestRepository(db);
-  const usageLogRepository = new SqliteUsageLogRepository(db);
-  const refillLogRepository = new SqliteRefillLogRepository(db);
-  const auditRepository = new SqliteAuditRepository(db);
+  const auditTrailRepository = new SqliteAuditTrailRepository(db);
 
   const authService = new AuthService(userRepository, passwordHasher, tokenService);
   const crewLeadService = new CrewLeadService(
@@ -55,12 +51,12 @@ export function buildContainer(db: DB): Container {
   const usageService = new UsageService(
     userRepository,
     resourceRepository,
-    usageLogRepository,
+    auditTrailRepository,
     db,
   );
   const inventoryService = new InventoryService(
     resourceRepository,
-    refillLogRepository,
+    auditTrailRepository,
     db,
   );
 
@@ -73,6 +69,6 @@ export function buildContainer(db: DB): Container {
     inventoryService,
     userRepository,
     resourceRepository,
-    auditRepository,
+    auditTrailRepository,
   };
 }

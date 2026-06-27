@@ -47,6 +47,7 @@ export function createApiRouter(
     createResourcesRouter(
       container.resourceRepository,
       container.inventoryService,
+      container.auditTrailRepository,
       authenticate,
     ),
   );
@@ -64,7 +65,11 @@ export function createApiRouter(
   );
   router.use(
     '/reports',
-    createReportsRouter(container.usageService, container.auditRepository, authenticate),
+    createReportsRouter(
+      container.usageService,
+      container.auditTrailRepository,
+      authenticate,
+    ),
   );
 
   return router;

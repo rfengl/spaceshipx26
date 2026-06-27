@@ -253,9 +253,16 @@ export default function ResourcesPage() {
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Dashboard
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link to="/" className="back-link">
+          ← Dashboard
+        </Link>
+        {isCrew && (
+          <Link to="/audit-trail" className="back-link">
+            Audit Trail →
+          </Link>
+        )}
+      </div>
 
       <section className="card">
         <div className="flex items-center justify-between gap-4">
@@ -324,24 +331,32 @@ export default function ResourcesPage() {
                         className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
                           r.remainingQty,
                           r.maxQty,
-                        )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''} ${
-                          r.isDecommissioned ? 'opacity-60' : ''
-                        }`}
+                        )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''}`}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
-                          <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
-                        </div>
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
-                            <strong className="text-[1.05rem] text-[#e8eefc]">
-                              {r.remainingQty}
-                            </strong>{' '}
-                            / {r.maxQty} in stock
-                          </p>
-                          <span className="text-[0.8rem] text-[#9fb3d8]">
-                            {r.isDecommissioned ? 'Decommissioned' : 'Active'}
-                          </span>
+                        {/* Dim only the info when decommissioned — the action
+                            buttons (esp. Recommission) stay fully clickable. */}
+                        <div
+                          className={`flex flex-col gap-2 ${
+                            r.isDecommissioned ? 'opacity-60' : ''
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
+                            <span className={`tier tier-${r.minLevel}`}>
+                              {r.minLevel}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
+                              <strong className="text-[1.05rem] text-[#e8eefc]">
+                                {r.remainingQty}
+                              </strong>{' '}
+                              / {r.maxQty} in stock
+                            </p>
+                            <span className="text-[0.8rem] text-[#9fb3d8]">
+                              {r.isDecommissioned ? 'Decommissioned' : 'Active'}
+                            </span>
+                          </div>
                         </div>
 
                         {isCrew && (
@@ -358,7 +373,9 @@ export default function ResourcesPage() {
                               Edit
                             </button>
                             <button
-                              className="link-btn"
+                              className={`link-btn ${
+                                r.isDecommissioned ? 'font-semibold text-[#8ef5b0]' : ''
+                              }`}
                               onClick={() => void toggleDecommission(r)}
                             >
                               {r.isDecommissioned ? 'Recommission' : 'Decommission'}

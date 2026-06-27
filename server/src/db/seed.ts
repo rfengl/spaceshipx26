@@ -4,7 +4,7 @@ import type { NewResource } from '../domain/models.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import { SqliteUserRepository } from '../infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from '../infrastructure/sqlite/sqliteResourceRepository.js';
-import { SqliteUsageLogRepository } from '../infrastructure/sqlite/sqliteUsageLogRepository.js';
+import { SqliteAuditTrailRepository } from '../infrastructure/sqlite/sqliteAuditTrailRepository.js';
 
 // Every seeded account shares this demo password (hashed before storage).
 export const DEMO_PASSWORD = 'mars2026';
@@ -62,7 +62,7 @@ export async function seedDatabase(
   }
 
   const resources = new SqliteResourceRepository(db);
-  const usageLogs = new SqliteUsageLogRepository(db);
+  const audit = new SqliteAuditTrailRepository(db);
 
   // Hash once (all demo accounts share the same password) — bcrypt is async,
   // so this must happen before the synchronous better-sqlite3 transaction.
@@ -102,7 +102,7 @@ export async function seedDatabase(
       const resourceId = resourceIdByName.get(name);
       if (!resourceId) continue;
       for (let i = 0; i < uses; i += 1) {
-        usageLogs.record({ userId: usageUserId, resourceId });
+        audit.record({ userId: usageUserId, resourceId, action: 'USE', amount: 1 });
       }
     }
   });
