@@ -105,6 +105,55 @@ test('shortages returns the most depleted resources first (lowest stock ratio)',
   });
 });
 
+test('audit trail returns usage and refill activity, newest first, with names', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+
+    // Refill a resource to create a REFILL entry on top of the seeded usage.
+    const { data: resources } = await (
+      await fetch(`${base}/api/resources`, { headers: authJson(token) })
+    ).json();
+    const cabin = resources.find((r: { name: string }) => r.name === 'Private Cabin');
+    await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authJson(token) },
+      body: JSON.stringify({ amount: 2 }),
+    });
+
+    const res = await fetch(`${base}/api/reports/audit`, { headers: authJson(token) });
+    assert.equal(res.status, 200);
+    const { data } = await res.json();
+
+    assert.ok(data.length > 0);
+
+    // The refill we just made is present and enriched with names + amount.
+    const refill = data.find(
+      (e: { type: string; resourceName: string }) =>
+        e.type === 'REFILL' && e.resourceName === 'Private Cabin',
+    );
+    assert.ok(refill, 'refill activity is in the trail');
+    assert.equal(refill.userName, 'Ada Lovelace');
+    assert.equal(refill.amount, 2);
+
+    // Both activity types are present and every entry is name-enriched.
+    const types = new Set(data.map((e: { type: string }) => e.type));
+    assert.ok(types.has('USE'));
+    assert.ok(types.has('REFILL'));
+    assert.ok(
+      data.every(
+        (e: { userName: string; resourceName: string }) =>
+          typeof e.userName === 'string' && typeof e.resourceName === 'string',
+      ),
+    );
+
+    // Sorted newest-first (non-increasing timestamps).
+    for (let i = 1; i < data.length; i += 1) {
+      assert.ok(data[i - 1].at >= data[i].at);
+    }
+  });
+});
+
 test('shortages is crew-lead only (403) and requires auth (401)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {

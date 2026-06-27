@@ -23,6 +23,12 @@ const NAV_ITEMS = [
     title: 'Crew Leads',
     description: 'The administrators managing the ship (exactly three).',
   },
+  {
+    to: '/audit-trail',
+    icon: '🧾',
+    title: 'Audit Trail',
+    description: 'Every resource activity — passenger usage and crew refills.',
+  },
 ];
 
 // Colour cards by remaining stock so the worst shortages stand out.
@@ -75,7 +81,7 @@ export default function Dashboard() {
         </section>
       )}
 
-      <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {NAV_ITEMS.map((item) => (
           <Link
             key={item.to}

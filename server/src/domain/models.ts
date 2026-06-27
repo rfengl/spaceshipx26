@@ -72,6 +72,21 @@ export interface RefillLog {
   refilledAt: string;
 }
 
+// A single line in the resource audit trail: a passenger use or a crew refill,
+// enriched with the actor's and resource's names for display.
+export type AuditAction = 'USE' | 'REFILL';
+
+export interface AuditEntry {
+  id: string;
+  type: AuditAction;
+  userId: string;
+  userName: string;
+  resourceId: string;
+  resourceName: string;
+  amount: number;
+  at: string;
+}
+
 // Identity carried in the JWT. `role` is derived from isCrewLead at login.
 export interface AuthUser {
   id: string;

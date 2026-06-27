@@ -62,7 +62,10 @@ export function createApiRouter(
     '/crew-leads',
     createCrewLeadsRouter(container.crewLeadService, authenticate),
   );
-  router.use('/reports', createReportsRouter(container.usageService, authenticate));
+  router.use(
+    '/reports',
+    createReportsRouter(container.usageService, container.auditRepository, authenticate),
+  );
 
   return router;
 }

@@ -168,7 +168,7 @@ export default function ResourcesPage() {
 
   function openRefill(resource: Resource) {
     setRefilling(resource);
-    setRefillAmount(resource.maxQty - resource.remainingQty); // default: fill to max
+    setRefillAmount(1); // default to one unit; "Fill to max" link tops it up
     setError(null);
   }
 
@@ -262,7 +262,7 @@ export default function ResourcesPage() {
           <h2 className="m-0 text-[1.1rem]">Resources</h2>
           {isCrew && (
             <button className="btn" onClick={openCreate}>
-              + Add resource
+              + Provision
             </button>
           )}
         </div>
@@ -275,13 +275,13 @@ export default function ResourcesPage() {
           <p className="muted mt-3">No resources yet.</p>
         ) : (
           <>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
               <SearchInput
                 value={query}
                 onChange={setQuery}
                 placeholder="Search by name or tier…"
               />
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end sm:ml-auto sm:self-auto">
                 <label className="muted text-[0.8rem]" htmlFor="resource-sort">
                   Sort
                 </label>
@@ -313,7 +313,7 @@ export default function ResourcesPage() {
               <p className="muted mt-3">No resources match “{query}”.</p>
             ) : (
               <>
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {paged.map((r) => {
                     const full = r.remainingQty >= r.maxQty;
                     const focused = r.id === focusId;
@@ -332,15 +332,17 @@ export default function ResourcesPage() {
                           <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
                           <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
                         </div>
-                        <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
-                          <strong className="text-[1.05rem] text-[#e8eefc]">
-                            {r.remainingQty}
-                          </strong>{' '}
-                          / {r.maxQty} in stock
-                        </p>
-                        <p className="m-0 text-[0.8rem] text-[#9fb3d8]">
-                          {r.isDecommissioned ? 'Decommissioned' : 'Active'}
-                        </p>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
+                            <strong className="text-[1.05rem] text-[#e8eefc]">
+                              {r.remainingQty}
+                            </strong>{' '}
+                            / {r.maxQty} in stock
+                          </p>
+                          <span className="text-[0.8rem] text-[#9fb3d8]">
+                            {r.isDecommissioned ? 'Decommissioned' : 'Active'}
+                          </span>
+                        </div>
 
                         {isCrew && (
                           <div className="row-actions mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2">
@@ -480,17 +482,26 @@ export default function ResourcesPage() {
                 required
               />
             </label>
-            <div className="mt-4 flex justify-end gap-2.5">
+            <div className="mt-4 flex items-center justify-between gap-2.5">
               <button
                 type="button"
-                className="btn-ghost"
-                onClick={() => setRefilling(null)}
+                className="link-btn text-[0.82rem]"
+                onClick={() => setRefillAmount(room)}
               >
-                Cancel
+                Fill to max ({room})
               </button>
-              <button type="submit" className="btn" disabled={refillBusy}>
-                {refillBusy ? 'Refilling…' : `Add ${refillAmount}`}
-              </button>
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setRefilling(null)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn" disabled={refillBusy}>
+                  {refillBusy ? 'Refilling…' : `Add ${refillAmount}`}
+                </button>
+              </div>
             </div>
           </form>
         </Modal>

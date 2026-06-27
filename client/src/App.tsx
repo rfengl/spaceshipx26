@@ -8,6 +8,7 @@ import PassengerDashboard from './pages/PassengerDashboard/PassengerDashboard';
 import ResourcesPage from './pages/Resources/ResourcesPage';
 import PassengersPage from './pages/Passengers/PassengersPage';
 import CrewLeadsPage from './pages/CrewLeads/CrewLeadsPage';
+import AuditTrailPage from './pages/AuditTrail/AuditTrailPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import { useAuth } from './hooks/useAuth';
 import { loadStoredUser, logout, fetchMe } from './api/auth';
@@ -101,6 +102,14 @@ export default function App() {
             }
           />
           <Route path="crew-leads" element={<CrewLeadsPage />} />
+          <Route
+            path="audit-trail"
+            element={
+              <RequireCrew>
+                <AuditTrailPage />
+              </RequireCrew>
+            }
+          />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
