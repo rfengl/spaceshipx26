@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
 import { useResourceSocket } from '../../hooks/useResourceSocket';
+import { sameResource } from '../../utils/sameResource';
 import { listMyResources, useResource } from '../../api/resources';
 import type { Resource } from '../../types';
 
@@ -51,17 +52,23 @@ export default function PassengerDashboard() {
 
   // Live updates: the server only pushes resources this passenger's tier can
   // access, so we can apply them directly (patch in place, add if new, remove
-  // on delete) without refetching the list.
+  // on delete) without refetching. Returning the previous array on a no-op
+  // (e.g. a socket echo of our own use) lets React skip the re-render.
   useResourceSocket((change) => {
     if (change.type === 'resource.removed') {
-      setResources((prev) => prev.filter((r) => r.id !== change.resourceId));
+      setResources((prev) =>
+        prev.some((r) => r.id === change.resourceId)
+          ? prev.filter((r) => r.id !== change.resourceId)
+          : prev,
+      );
       return;
     }
-    setResources((prev) =>
-      prev.some((r) => r.id === change.resource.id)
-        ? prev.map((r) => (r.id === change.resource.id ? change.resource : r))
-        : [...prev, change.resource],
-    );
+    const next = change.resource;
+    setResources((prev) => {
+      const current = prev.find((r) => r.id === next.id);
+      if (current && sameResource(current, next)) return prev;
+      return current ? prev.map((r) => (r.id === next.id ? next : r)) : [...prev, next];
+    });
   });
 
   async function doUse() {

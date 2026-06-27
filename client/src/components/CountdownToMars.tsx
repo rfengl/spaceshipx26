@@ -44,7 +44,7 @@ function remaining(): Remaining | null {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** Live countdown to the ship's arrival at Mars. Compact on small screens. */
+/** Live countdown to the ship's arrival at Mars. Wraps to two lines on small screens. */
 export default function CountdownToMars() {
   const [time, setTime] = useState<Remaining | null>(remaining);
 
@@ -56,17 +56,23 @@ export default function CountdownToMars() {
   return (
     <span
       title="Estimated arrival at Mars · 21 Jun 2036"
-      className="whitespace-nowrap text-[0.6rem] leading-tight tracking-[0.02em] text-[#9fb3d8] sm:text-[0.8rem]"
+      className="inline-flex items-center gap-1 text-[0.72rem] leading-tight tracking-[0.02em] text-[#9fb3d8] sm:text-[0.8rem]"
     >
-      <span aria-hidden>🪐</span>{' '}
+      <span aria-hidden>🪐</span>
       {time ? (
-        <>
-          <span className="hidden sm:inline">Mars in </span>
-          <strong className="text-[#bcd4ff]">
-            {time.years}y {time.months}m {time.days}d
-          </strong>{' '}
-          {pad(time.hours)}:{pad(time.mins)}:{pad(time.secs)}
-        </>
+        // On mobile the date and clock stack (left-aligned) so the icon sits
+        // centred across both lines; on sm+ they sit inline on a single line.
+        <span className="flex flex-col sm:flex-row sm:gap-1">
+          <span className="whitespace-nowrap">
+            <span className="hidden sm:inline">Mars in </span>
+            <strong className="text-[#bcd4ff]">
+              {time.years}y {time.months}m {time.days}d
+            </strong>
+          </span>
+          <span className="whitespace-nowrap">
+            {pad(time.hours)}:{pad(time.mins)}:{pad(time.secs)}
+          </span>
+        </span>
       ) : (
         <span className="text-[#8ef5b0]">Arrived at Mars 🎉</span>
       )}

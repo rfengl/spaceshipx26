@@ -121,11 +121,17 @@ test('audit trail returns usage and refill activity, newest first, with names', 
       body: JSON.stringify({ amount: 2 }),
     });
 
-    const res = await fetch(`${base}/api/reports/audit`, { headers: authJson(token) });
+    const res = await fetch(`${base}/api/reports/audit?pageSize=100`, {
+      headers: authJson(token),
+    });
     assert.equal(res.status, 200);
-    const { data } = await res.json();
+    const { data, total } = await res.json();
 
     assert.ok(data.length > 0);
+    // The server reports the full match count alongside the page (35 seeded
+    // uses + the refill just made).
+    assert.equal(total, 36);
+    assert.equal(data.length, 36);
 
     // The refill we just made is present and enriched with names + amount.
     const refill = data.find(
@@ -190,12 +196,14 @@ test('audit trail records resource lifecycle actions (provision/decommission/del
     // Soft delete
     await fetch(`${base}/api/resources/${id}`, { method: 'DELETE', headers: json });
 
-    const { data } = await (
-      await fetch(`${base}/api/reports/audit`, { headers: authJson(token) })
+    // Filter server-side by the new resource so only its lifecycle rows return.
+    const { data, total } = await (
+      await fetch(`${base}/api/reports/audit?resourceId=${id}`, {
+        headers: authJson(token),
+      })
     ).json();
-    const actions = data
-      .filter((e: { resourceId: string }) => e.resourceId === id)
-      .map((e: { type: string }) => e.type);
+    assert.equal(total, 4);
+    const actions = data.map((e: { type: string }) => e.type);
 
     assert.deepEqual([...actions].sort(), [
       'DECOMMISSION',
@@ -209,6 +217,44 @@ test('audit trail records resource lifecycle actions (provision/decommission/del
     );
     assert.equal(provision.userName, 'Ada Lovelace');
     assert.equal(provision.resourceName, 'Observation Lounge');
+  });
+});
+
+test('audit trail paginates and filters by resource and date server-side', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const get = async (qs: string) =>
+      (
+        await fetch(`${base}/api/reports/audit${qs}`, { headers: authJson(token) })
+      ).json();
+
+    // One page is a bounded slice, but total reflects every matching row.
+    const firstPage = await get('?pageSize=5&page=1');
+    assert.equal(firstPage.data.length, 5);
+    assert.equal(firstPage.total, 35); // 35 seeded uses, no refills yet
+
+    // The page count holds across pages, and a later page returns the remainder.
+    const lastPage = await get('?pageSize=10&page=4');
+    assert.equal(lastPage.total, 35);
+    assert.equal(lastPage.data.length, 5); // rows 31–35
+
+    // Resource filter narrows the total to that resource's use count (Sleeping
+    // Pod is seeded with 14 uses), and every returned row matches.
+    const { data: resources } = await (
+      await fetch(`${base}/api/resources`, { headers: authJson(token) })
+    ).json();
+    const pod = resources.find((r: { name: string }) => r.name === 'Sleeping Pod');
+    const byResource = await get(`?resourceId=${pod.id}&pageSize=100`);
+    assert.equal(byResource.total, 14);
+    assert.ok(
+      byResource.data.every((e: { resourceId: string }) => e.resourceId === pod.id),
+    );
+
+    // A future date range matches nothing.
+    const future = await get('?from=2999-01-01');
+    assert.equal(future.total, 0);
+    assert.equal(future.data.length, 0);
   });
 });
 

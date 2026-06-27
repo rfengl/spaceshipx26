@@ -1,4 +1,4 @@
-import type { Resource } from '../types';
+import type { Resource } from '../../types';
 
 interface ResourceActionsProps {
   resource: Resource;

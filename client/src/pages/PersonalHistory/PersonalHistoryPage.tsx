@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { usePersistentState } from '../../hooks/usePersistentState';
-import Pagination from '../../components/Pagination';
+import { usePagination } from '../../hooks/usePagination';
+import PaginationBar from '../../components/PaginationBar';
 import { getMyHistory, type AuditEntry } from '../../api/audit';
+import BackDashboardButton from '../../components/BackDashboardButton';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
-
-const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
 
 const fmt = (at: string) =>
   new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -20,8 +19,6 @@ export default function PersonalHistoryPage() {
   const [resourceId, setResourceId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = usePersistentState('history.pageSize', 10);
 
   useEffect(() => {
     getMyHistory()
@@ -57,13 +54,10 @@ export default function PersonalHistoryPage() {
   // The summary reflects the active filters (so the date range affects totals).
   const summary = groupByResource(filtered);
 
-  useEffect(() => {
-    setPage(1);
-  }, [resourceId, from, to, pageSize]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const { paged, paging } = usePagination(filtered, {
+    storageKey: 'history.pageSize',
+    resetKey: `${resourceId}|${from}|${to}`,
+  });
 
   const hasFilter = Boolean(resourceId || from || to);
   const clear = () => {
@@ -77,9 +71,7 @@ export default function PersonalHistoryPage() {
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Dashboard
-      </Link>
+      <BackDashboardButton />
 
       <section className="card">
         <h2 className="m-0 text-[1.1rem]">My history</h2>
@@ -185,23 +177,7 @@ export default function PersonalHistoryPage() {
               </tbody>
             </table>
 
-            <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-              <label className="flex items-center gap-2 text-[0.8rem] text-[#9fb3d8]">
-                Rows per page
-                <select
-                  className="input py-[0.4rem]"
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                >
-                  {PAGE_SIZE_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Pagination page={safePage} pageCount={pageCount} onPage={setPage} />
-            </div>
+            <PaginationBar {...paging} />
           </>
         )}
       </section>

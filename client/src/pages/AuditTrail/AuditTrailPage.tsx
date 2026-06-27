@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { usePersistentState } from '../../hooks/usePersistentState';
-import Pagination from '../../components/Pagination';
-import { getAuditTrail, type AuditAction, type AuditEntry } from '../../api/audit';
+import PaginationBar from '../../components/PaginationBar';
+import { getAuditPage, type AuditAction, type AuditEntry } from '../../api/audit';
 import { listResources } from '../../api/resources';
+import { listCrewLeads } from '../../api/crewLeads';
+import { listPassengers } from '../../api/passengers';
+import { usePagination } from '../../hooks/usePagination';
+import BackDashboardButton from '../../components/BackDashboardButton';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
-
-const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
 
 const fmt = (at: string) =>
   new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -38,21 +39,18 @@ const qtyLabel = (e: AuditEntry) => {
   return '—';
 };
 
-// Distinct {value, label} options for a filter dropdown, sorted by label.
-function options(
-  entries: AuditEntry[],
-  id: (e: AuditEntry) => string,
-  name: (e: AuditEntry) => string,
-) {
-  const map = new Map<string, string>();
-  entries.forEach((e) => map.set(id(e), name(e)));
-  return [...map]
-    .map(([value, label]) => ({ value, label }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+interface Option {
+  value: string;
+  label: string;
 }
 
+const byLabel = (a: Option, b: Option) => a.label.localeCompare(b.label);
+
 export default function AuditTrailPage() {
+  // The trail is unbounded, so it's paginated and filtered server-side: each
+  // change refetches just the matching page plus a total count (for the pager).
   const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,71 +58,77 @@ export default function AuditTrailPage() {
   const [resourceId, setResourceId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = usePersistentState('audit.pageSize', 10);
 
-  // Resource filter options come from the live resource list (which excludes
-  // soft-deleted resources), so deleted resources aren't filterable — though
-  // their past activity still shows under "All".
-  const [resourceOptions, setResourceOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
+  // const [page, setPage] = useState(1);
+  // const [pageSize, setPageSize] = usePersistentState('audit.pageSize', 10);
+  const { paging } = usePagination(null, {
+    total,
+    storageKey: 'audit.pageSize',
+    resetKey: `${userId}-${resourceId}-${from}-${to}`,
+  });
+
+  // Filter dropdowns are sourced from the live rosters/inventory (active only),
+  // so soft-deleted users/resources aren't selectable — their past activity
+  // still appears under "All".
+  const [userOptions, setUserOptions] = useState<Option[]>([]);
+  const [resourceOptions, setResourceOptions] = useState<Option[]>([]);
 
   useEffect(() => {
-    getAuditTrail()
-      .then(setEntries)
-      .catch((e) => setError(errMsg(e)))
-      .finally(() => setLoading(false));
+    // Anyone who can act on resources (crew refills/lifecycle + passenger uses).
+    Promise.all([listCrewLeads(), listPassengers()])
+      .then(([crew, passengers]) => {
+        const map = new Map<string, string>();
+        [...crew, ...passengers].forEach((u) => map.set(u.id, u.name));
+        setUserOptions(
+          [...map].map(([value, label]) => ({ value, label })).sort(byLabel),
+        );
+      })
+      .catch(() => setUserOptions([]));
   }, []);
 
   useEffect(() => {
     listResources()
       .then((rs) =>
-        setResourceOptions(
-          rs
-            .map((r) => ({ value: r.id, label: r.name }))
-            .sort((a, b) => a.label.localeCompare(b.label)),
-        ),
+        setResourceOptions(rs.map((r) => ({ value: r.id, label: r.name })).sort(byLabel)),
       )
       .catch(() => setResourceOptions([]));
   }, []);
 
-  // Passenger options come from the trail itself (so anyone with activity,
-  // including soft-deleted passengers, can be selected).
-  const passengers = useMemo(
-    () =>
-      options(
-        entries,
-        (e) => e.userId,
-        (e) => e.userName,
-      ),
-    [entries],
-  );
-
-  const filtered = entries.filter((e) => {
-    if (userId && e.userId !== userId) return false;
-    if (resourceId && e.resourceId !== resourceId) return false;
-    const day = e.at.slice(0, 10); // YYYY-MM-DD
-    if (from && day < from) return false;
-    if (to && day > to) return false;
-    return true;
-  });
-
-  // Any change to a filter or page size returns to the first page.
+  const { page, pageSize, onPage } = paging;
+  // Refetch the current page whenever the page, page size, or any filter changes.
+  // `active` guards against an out-of-order response overwriting a newer one.
   useEffect(() => {
-    setPage(1);
-  }, [userId, resourceId, from, to, pageSize]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+    let active = true;
+    setLoading(true);
+    setError(null);
+    getAuditPage({ page, pageSize, userId, resourceId, from, to })
+      .then((res) => {
+        if (!active) return;
+        setEntries(res.data);
+        setTotal(res.total);
+      })
+      .catch((e) => active && setError(errMsg(e)))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [page, pageSize, userId, resourceId, from, to]);
 
   const hasFilter = Boolean(userId || resourceId || from || to);
+
+  // Changing a filter or the page size resets back to the first page.
+  const onFilter =
+    (setter: (v: string) => void) =>
+    (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+      setter(e.target.value);
+      onPage(1);
+    };
   const clear = () => {
     setUserId('');
     setResourceId('');
     setFrom('');
     setTo('');
+    onPage(1);
   };
 
   const field =
@@ -132,9 +136,7 @@ export default function AuditTrailPage() {
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Dashboard
-      </Link>
+      <BackDashboardButton />
 
       <section className="card">
         <h2 className="m-0 text-[1.1rem]">Audit trail</h2>
@@ -145,14 +147,14 @@ export default function AuditTrailPage() {
 
         <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
           <label className={field}>
-            Passenger
+            User
             <select
               className="input w-full py-[0.4rem]"
               value={userId}
-              onChange={(e) => setUserId(e.target.value)}
+              onChange={onFilter(setUserId)}
             >
               <option value="">All</option>
-              {passengers.map((o) => (
+              {userOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -164,7 +166,7 @@ export default function AuditTrailPage() {
             <select
               className="input w-full py-[0.4rem]"
               value={resourceId}
-              onChange={(e) => setResourceId(e.target.value)}
+              onChange={onFilter(setResourceId)}
             >
               <option value="">All</option>
               {resourceOptions.map((o) => (
@@ -181,7 +183,7 @@ export default function AuditTrailPage() {
               className="input w-full py-[0.4rem]"
               value={from}
               max={to || undefined}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={onFilter(setFrom)}
             />
           </label>
           <label className={field}>
@@ -191,7 +193,7 @@ export default function AuditTrailPage() {
               className="input w-full py-[0.4rem]"
               value={to}
               min={from || undefined}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={onFilter(setTo)}
             />
           </label>
         </div>
@@ -207,13 +209,13 @@ export default function AuditTrailPage() {
 
         {error && <p className="error mt-3">⚠ {error}</p>}
 
-        {loading ? (
+        {loading && entries.length === 0 ? (
           <p className="muted mt-4">Loading activity…</p>
-        ) : filtered.length === 0 ? (
+        ) : entries.length === 0 ? (
           <p className="muted mt-4">
-            {entries.length === 0
-              ? 'No activity recorded yet.'
-              : 'No activity matches these filters.'}
+            {hasFilter
+              ? 'No activity matches these filters.'
+              : 'No activity recorded yet.'}
           </p>
         ) : (
           <>
@@ -223,12 +225,12 @@ export default function AuditTrailPage() {
                   <th>When</th>
                   <th>Activity</th>
                   <th>Resource</th>
-                  <th>Passenger</th>
+                  <th>User</th>
                   <th className="num">Qty</th>
                 </tr>
               </thead>
               <tbody>
-                {paged.map((e) => {
+                {entries.map((e) => {
                   const meta = ACTION_META[e.type];
                   return (
                     <tr key={e.id}>
@@ -244,7 +246,7 @@ export default function AuditTrailPage() {
                         {e.resourceName}
                         {e.note && <span className="text-[#7f93b8]"> · {e.note}</span>}
                       </td>
-                      <td data-label="Passenger">{e.userName}</td>
+                      <td data-label="User">{e.userName}</td>
                       <td className="num" data-label="Qty">
                         {qtyLabel(e)}
                       </td>
@@ -254,23 +256,7 @@ export default function AuditTrailPage() {
               </tbody>
             </table>
 
-            <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-              <label className="flex items-center gap-2 text-[0.8rem] text-[#9fb3d8]">
-                Rows per page
-                <select
-                  className="input py-[0.4rem]"
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                >
-                  {PAGE_SIZE_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Pagination page={safePage} pageCount={pageCount} onPage={setPage} />
-            </div>
+            <PaginationBar {...paging} />
           </>
         )}
       </section>

@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS audit_trail (
 CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_trail(resource_id);
 CREATE INDEX IF NOT EXISTS idx_audit_user     ON audit_trail(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action   ON audit_trail(action);
+-- Supports the newest-first paginated trail (ORDER BY created_at DESC).
+CREATE INDEX IF NOT EXISTS idx_audit_created  ON audit_trail(created_at);
 
 -- A proposed crew-lead swap (demote one crew lead, promote one passenger).
 -- Stays PENDING until a different crew lead approves, keeping exactly 3.

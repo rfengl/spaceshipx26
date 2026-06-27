@@ -1,35 +1,28 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { usePagination } from '../../hooks/usePagination';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useResourceSocket } from '../../hooks/useResourceSocket';
-import Modal from '../../components/Modal/Modal';
+import { sameResource } from '../../utils/sameResource';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
-import Pagination from '../../components/Pagination';
-import ResourceActions from '../../components/ResourceActions';
+import PaginationBar from '../../components/PaginationBar';
+import ResourceActions from './ResourceActions';
+import ProvisionResourceButton from './ProvisionResourceButton';
+import ResourceFormModal from './ResourceFormModal';
+import RefillModal from './RefillModal';
+import WriteOffModal from './WriteOffModal';
 import {
   listResources,
-  createResource,
   updateResource,
-  refillResource,
-  writeOffResource,
   deleteResource,
   getResourceDemand,
 } from '../../api/resources';
-import {
-  TIER_RANK,
-  type MembershipLevel,
-  type NewResource,
-  type Resource,
-} from '../../types';
-
-const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
-const emptyForm: NewResource = { name: '', minLevel: 'SILVER', maxQty: 1 };
-const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
-const WRITE_OFF_REASONS = ['Expired', 'Broken', 'Lost', 'Other'];
+import { TIER_RANK, type Resource } from '../../types';
+import BackDashboardButton from '../../components/BackDashboardButton';
 
 type SortKey =
   | 'name'
@@ -49,8 +42,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 ];
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
-
-const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
 
 // Colour cards by remaining stock so the worst shortages stand out.
 function stockCard(remaining: number, max: number) {
@@ -75,6 +66,9 @@ function stockRowBg(remaining: number, max: number) {
 const FOCUS_ACCENT =
   '[&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-[#5ad0ff]';
 
+// Remaining-stock ratio (module-level so it stays stable for the sort memo).
+const stockRatio = (r: Resource) => (r.maxQty > 0 ? r.remainingQty / r.maxQty : 0);
+
 export default function ResourcesPage() {
   const { user } = useAuth();
   const isCrew = user.role === 'CREW_LEAD';
@@ -95,19 +89,10 @@ export default function ResourcesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<NewResource>(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
-
+  // Each modal is opened by selecting the resource it acts on (null = closed).
+  const [editing, setEditing] = useState<Resource | null>(null);
   const [refilling, setRefilling] = useState<Resource | null>(null);
-  const [refillAmount, setRefillAmount] = useState(1);
-  const [refillBusy, setRefillBusy] = useState(false);
-
   const [writingOff, setWritingOff] = useState<Resource | null>(null);
-  const [writeOffAmount, setWriteOffAmount] = useState(1);
-  const [writeOffReason, setWriteOffReason] = useState(WRITE_OFF_REASONS[0]);
-  const [writeOffBusy, setWriteOffBusy] = useState(false);
 
   const [deleting, setDeleting] = useState<Resource | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -118,8 +103,6 @@ export default function ResourcesPage() {
     'resources.sortDir',
     'asc',
   );
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = usePersistentState('resources.pageSize', 10);
   const [demand, setDemand] = useState<Record<string, number>>({});
 
   // Usage counts per resource, for the "High demand" sort.
@@ -128,11 +111,6 @@ export default function ResourcesPage() {
       .then(setDemand)
       .catch(() => setDemand({}));
   }, []);
-
-  // Any change to the search, sort, or page size returns to the first page.
-  useEffect(() => {
-    setPage(1);
-  }, [query, sortKey, sortDir, pageSize]);
 
   async function refresh() {
     setLoading(true);
@@ -159,106 +137,27 @@ export default function ResourcesPage() {
 
   // Patch a single resource in place (add if new). Used by both our own
   // mutations and live socket pushes, so the list is never fully refetched.
+  // Returning the previous array when nothing changed lets React skip the
+  // re-render (e.g. a socket echo of a change we just applied optimistically).
   const applyResource = (r: Resource) =>
-    setResources((prev) =>
-      prev.some((x) => x.id === r.id)
-        ? prev.map((x) => (x.id === r.id ? r : x))
-        : [r, ...prev],
-    );
+    setResources((prev) => {
+      const current = prev.find((x) => x.id === r.id);
+      if (current && sameResource(current, r)) return prev;
+      return current ? prev.map((x) => (x.id === r.id ? r : x)) : [r, ...prev];
+    });
   const removeResourceById = (id: string) =>
-    setResources((prev) => prev.filter((x) => x.id !== id));
+    setResources((prev) =>
+      prev.some((x) => x.id === id) ? prev.filter((x) => x.id !== id) : prev,
+    );
 
   // Live updates: another crew lead's change, or a passenger consuming stock.
+  // (At this scale a full-list re-render per update is fine; if the inventory
+  // grew large + chatty, the next step would be a React.memo'd row with
+  // useCallback-stabilised handlers so only the changed row re-renders.)
   useResourceSocket((change) => {
     if (change.type === 'resource.updated') applyResource(change.resource);
     else removeResourceById(change.resourceId);
   });
-
-  function openCreate() {
-    setEditingId(null);
-    setForm(emptyForm);
-    setFormOpen(true);
-  }
-
-  function openEdit(resource: Resource) {
-    setEditingId(resource.id);
-    setForm({
-      name: resource.name,
-      minLevel: resource.minLevel,
-      maxQty: resource.maxQty,
-    });
-    setFormOpen(true);
-  }
-
-  function closeForm() {
-    setFormOpen(false);
-    setEditingId(null);
-    setForm(emptyForm);
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!form.name.trim()) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      if (editingId) {
-        applyResource(await updateResource(editingId, form));
-      } else {
-        applyResource(await createResource(form));
-      }
-      closeForm();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function openRefill(resource: Resource) {
-    setRefilling(resource);
-    setRefillAmount(1); // default to one unit; "Fill to max" link tops it up
-    setError(null);
-  }
-
-  async function handleRefill(event: FormEvent) {
-    event.preventDefault();
-    if (!refilling) return;
-    setRefillBusy(true);
-    setError(null);
-    try {
-      applyResource(await refillResource(refilling.id, refillAmount));
-      setRefilling(null);
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setRefillBusy(false);
-    }
-  }
-
-  function openWriteOff(resource: Resource) {
-    setWritingOff(resource);
-    setWriteOffAmount(1);
-    setWriteOffReason(WRITE_OFF_REASONS[0]);
-    setError(null);
-  }
-
-  async function handleWriteOff(event: FormEvent) {
-    event.preventDefault();
-    if (!writingOff) return;
-    setWriteOffBusy(true);
-    setError(null);
-    try {
-      applyResource(
-        await writeOffResource(writingOff.id, writeOffAmount, writeOffReason),
-      );
-      setWritingOff(null);
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setWriteOffBusy(false);
-    }
-  }
 
   async function toggleDecommission(resource: Resource) {
     setError(null);
@@ -279,7 +178,7 @@ export default function ResourcesPage() {
     setError(null);
     try {
       await deleteResource(deleting.id);
-      setResources((prev) => prev.filter((r) => r.id !== deleting.id));
+      removeResourceById(deleting.id);
       setDeleting(null);
     } catch (e) {
       setError(errMsg(e));
@@ -288,48 +187,46 @@ export default function ResourcesPage() {
     }
   }
 
-  const room = refilling ? refilling.maxQty - refilling.remainingQty : 0;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return resources;
+    return resources.filter(
+      (r) => r.name.toLowerCase().includes(q) || r.minLevel.toLowerCase().includes(q),
+    );
+  }, [resources, query]);
 
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? resources.filter(
-        (r) => r.name.toLowerCase().includes(q) || r.minLevel.toLowerCase().includes(q),
-      )
-    : resources;
-
-  const ratio = (r: Resource) => (r.maxQty > 0 ? r.remainingQty / r.maxQty : 0);
-
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
-    switch (sortKey) {
-      case 'minLevel':
-        return (TIER_RANK[a.minLevel] - TIER_RANK[b.minLevel]) * dir;
-      case 'remainingQty':
-        return (a.remainingQty - b.remainingQty) * dir;
-      case 'status':
-        // In-service first when ascending.
-        return (Number(a.isDecommissioned) - Number(b.isDecommissioned)) * dir;
-      case 'highDemand':
-        // Most-used first when ascending.
-        return ((demand[b.id] ?? 0) - (demand[a.id] ?? 0)) * dir;
-      case 'shortages':
-        // Most-depleted (lowest stock ratio) first when ascending.
-        return (ratio(a) - ratio(b)) * dir;
-      default:
-        return a.name.localeCompare(b.name) * dir;
-    }
-  });
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case 'minLevel':
+          return (TIER_RANK[a.minLevel] - TIER_RANK[b.minLevel]) * dir;
+        case 'remainingQty':
+          return (a.remainingQty - b.remainingQty) * dir;
+        case 'status':
+          // In-service first when ascending.
+          return (Number(a.isDecommissioned) - Number(b.isDecommissioned)) * dir;
+        case 'highDemand':
+          // Most-used first when ascending.
+          return ((demand[b.id] ?? 0) - (demand[a.id] ?? 0)) * dir;
+        case 'shortages':
+          // Most-depleted (lowest stock ratio) first when ascending.
+          return (stockRatio(a) - stockRatio(b)) * dir;
+        default:
+          return a.name.localeCompare(b.name) * dir;
+      }
+    });
+  }, [filtered, sortKey, sortDir, demand]);
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const paged = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const { paged, paging } = usePagination(sorted, {
+    storageKey: 'resources.pageSize',
+    resetKey: `${query}|${sortKey}|${sortDir}`,
+  });
 
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <Link to="/" className="back-link">
-          ← Dashboard
-        </Link>
+        <BackDashboardButton />
         {isCrew && (
           <Link to="/audit-trail" className="back-link">
             Audit Trail →
@@ -340,11 +237,7 @@ export default function ResourcesPage() {
       <section className="card">
         <div className="flex items-center justify-between gap-4">
           <h2 className="m-0 text-[1.1rem]">Resources</h2>
-          {isCrew && (
-            <button className="btn" onClick={openCreate}>
-              + Provision
-            </button>
-          )}
+          {isCrew && <ProvisionResourceButton onCreated={applyResource} />}
         </div>
 
         {error && <p className="error mt-3">⚠ {error}</p>}
@@ -432,9 +325,9 @@ export default function ResourcesPage() {
                               <td data-label="Actions">
                                 <ResourceActions
                                   resource={r}
-                                  onRefill={openRefill}
-                                  onWriteOff={openWriteOff}
-                                  onEdit={openEdit}
+                                  onRefill={setRefilling}
+                                  onWriteOff={setWritingOff}
+                                  onEdit={setEditing}
                                   onToggleDecommission={(x) => void toggleDecommission(x)}
                                   onDelete={setDeleting}
                                 />
@@ -488,9 +381,9 @@ export default function ResourcesPage() {
                             <ResourceActions
                               resource={r}
                               className="mt-auto pt-2"
-                              onRefill={openRefill}
-                              onWriteOff={openWriteOff}
-                              onEdit={openEdit}
+                              onRefill={setRefilling}
+                              onWriteOff={setWritingOff}
+                              onEdit={setEditing}
                               onToggleDecommission={(x) => void toggleDecommission(x)}
                               onDelete={setDeleting}
                             />
@@ -501,192 +394,35 @@ export default function ResourcesPage() {
                   </div>
                 )}
 
-                <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-                  <label className="flex items-center gap-2 text-[0.8rem] text-[#9fb3d8]">
-                    Rows per page
-                    <select
-                      className="input py-[0.4rem]"
-                      value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
-                    >
-                      {PAGE_SIZE_OPTIONS.map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Pagination page={safePage} pageCount={pageCount} onPage={setPage} />
-                </div>
+                <PaginationBar {...paging} />
               </>
             )}
           </>
         )}
       </section>
 
-      {formOpen && (
-        <Modal title={editingId ? 'Edit resource' : 'New resource'} onClose={closeForm}>
-          <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
-            <label className={fieldLabel}>
-              Name
-              <input
-                type="text"
-                className="input"
-                value={form.name}
-                placeholder="e.g. Hydroponics Bay"
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                autoFocus
-                required
-              />
-            </label>
-            <label className={fieldLabel}>
-              Minimum tier
-              <select
-                className="input"
-                value={form.minLevel}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, minLevel: e.target.value as MembershipLevel }))
-                }
-              >
-                {TIERS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={fieldLabel}>
-              Max quantity
-              <input
-                type="number"
-                className="input"
-                min={1}
-                value={form.maxQty}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    maxQty: Math.max(1, Number(e.target.value) || 1),
-                  }))
-                }
-                required
-              />
-            </label>
-            <div className="mt-4 flex justify-end gap-2.5">
-              <button type="button" className="btn-ghost" onClick={closeForm}>
-                Cancel
-              </button>
-              <button type="submit" className="btn" disabled={submitting}>
-                {submitting ? 'Saving…' : editingId ? 'Save' : 'Add resource'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+      {editing && (
+        <ResourceFormModal
+          resource={editing}
+          onClose={() => setEditing(null)}
+          onSaved={applyResource}
+        />
       )}
 
       {refilling && (
-        <Modal title={`Refill ${refilling.name}`} onClose={() => setRefilling(null)}>
-          <form className="flex flex-col gap-3.5" onSubmit={handleRefill}>
-            <p className="muted m-0 text-[0.85rem]">
-              Currently <strong>{refilling.remainingQty}</strong> / {refilling.maxQty} in
-              stock — you can add up to <strong>{room}</strong> more.
-            </p>
-            <label className={fieldLabel}>
-              Refill amount
-              <input
-                type="number"
-                className="input"
-                min={1}
-                max={room}
-                value={refillAmount}
-                onChange={(e) =>
-                  setRefillAmount(
-                    Math.min(room, Math.max(1, Number(e.target.value) || 1)),
-                  )
-                }
-                autoFocus
-                required
-              />
-            </label>
-            <div className="mt-4 flex items-center justify-between gap-2.5">
-              <button
-                type="button"
-                className="link-btn text-[0.82rem]"
-                onClick={() => setRefillAmount(room)}
-              >
-                Fill to max ({room})
-              </button>
-              <div className="flex gap-2.5">
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={() => setRefilling(null)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn" disabled={refillBusy}>
-                  {refillBusy ? 'Refilling…' : `Add ${refillAmount}`}
-                </button>
-              </div>
-            </div>
-          </form>
-        </Modal>
+        <RefillModal
+          resource={refilling}
+          onClose={() => setRefilling(null)}
+          onApplied={applyResource}
+        />
       )}
 
       {writingOff && (
-        <Modal title={`Write off ${writingOff.name}`} onClose={() => setWritingOff(null)}>
-          <form className="flex flex-col gap-3.5" onSubmit={handleWriteOff}>
-            <p className="muted m-0 text-[0.85rem]">
-              Remove stock that can no longer be consumed. Currently{' '}
-              <strong>{writingOff.remainingQty}</strong> / {writingOff.maxQty} in stock.
-            </p>
-            <label className={fieldLabel}>
-              Amount to write off
-              <input
-                type="number"
-                className="input"
-                min={1}
-                max={writingOff.remainingQty}
-                value={writeOffAmount}
-                onChange={(e) =>
-                  setWriteOffAmount(
-                    Math.min(
-                      writingOff.remainingQty,
-                      Math.max(1, Number(e.target.value) || 1),
-                    ),
-                  )
-                }
-                autoFocus
-                required
-              />
-            </label>
-            <label className={fieldLabel}>
-              Reason
-              <select
-                className="input"
-                value={writeOffReason}
-                onChange={(e) => setWriteOffReason(e.target.value)}
-              >
-                {WRITE_OFF_REASONS.map((reason) => (
-                  <option key={reason} value={reason}>
-                    {reason}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="mt-4 flex justify-end gap-2.5">
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setWritingOff(null)}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn-danger" disabled={writeOffBusy}>
-                {writeOffBusy ? 'Writing off…' : `Write off ${writeOffAmount}`}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <WriteOffModal
+          resource={writingOff}
+          onClose={() => setWritingOff(null)}
+          onApplied={applyResource}
+        />
       )}
 
       {deleting && (

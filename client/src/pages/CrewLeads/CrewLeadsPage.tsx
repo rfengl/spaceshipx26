@@ -1,20 +1,19 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
-import Modal from '../../components/Modal/Modal';
+import ProposeSwapButton from './ProposeSwapButton';
 import { listPassengers } from '../../api/passengers';
 import {
   listCrewLeads,
   listRequests,
-  proposeSwap,
   approveRequest,
   rejectRequest,
 } from '../../api/crewLeads';
 import type { ChangeRequest, Passenger } from '../../types';
+import BackDashboardButton from '../../components/BackDashboardButton';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
-const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
 
 export default function CrewLeadsPage() {
   const { user } = useAuth();
@@ -25,11 +24,6 @@ export default function CrewLeadsPage() {
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [proposeOpen, setProposeOpen] = useState(false);
-  const [demoteId, setDemoteId] = useState('');
-  const [promoteId, setPromoteId] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   const nameOf = (id: string) =>
     [...crewLeads, ...passengers].find((p) => p.id === id)?.name ?? 'someone';
@@ -57,28 +51,6 @@ export default function CrewLeadsPage() {
     void refresh();
   }, []);
 
-  function openPropose() {
-    setDemoteId('');
-    setPromoteId('');
-    setProposeOpen(true);
-  }
-
-  async function submitPropose(event: FormEvent) {
-    event.preventDefault();
-    if (!demoteId || !promoteId) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await proposeSwap(demoteId, promoteId);
-      setProposeOpen(false);
-      await refresh();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function resolve(id: string, action: 'approve' | 'reject') {
     setError(null);
     try {
@@ -95,17 +67,17 @@ export default function CrewLeadsPage() {
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Dashboard
-      </Link>
+      <BackDashboardButton />
 
       <section className="card">
         <div className="flex items-center justify-between gap-4 max-sm:mb-4">
           <h2 className="m-0 text-[1.1rem]">Crew Leads</h2>
           {isCrew && (
-            <button className="btn" onClick={openPropose}>
-              Propose swap
-            </button>
+            <ProposeSwapButton
+              demotable={demotable}
+              passengers={passengers}
+              onProposed={refresh}
+            />
           )}
         </div>
 
@@ -181,60 +153,6 @@ export default function CrewLeadsPage() {
             </ul>
           )}
         </section>
-      )}
-
-      {proposeOpen && (
-        <Modal title="Propose a crew-lead swap" onClose={() => setProposeOpen(false)}>
-          <form className="flex flex-col gap-3.5" onSubmit={submitPropose}>
-            <label className={fieldLabel}>
-              Demote (crew lead → passenger)
-              <select
-                className="input"
-                value={demoteId}
-                onChange={(e) => setDemoteId(e.target.value)}
-                required
-              >
-                <option value="">Select a crew lead…</option>
-                {demotable.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (@{c.username})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={fieldLabel}>
-              Promote (passenger → crew lead)
-              <select
-                className="input"
-                value={promoteId}
-                onChange={(e) => setPromoteId(e.target.value)}
-                required
-              >
-                <option value="">Select a passenger…</option>
-                {passengers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} (@{p.username})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="muted m-0 text-[0.8rem]">
-              The swap only applies once another crew lead approves it.
-            </p>
-            <div className="mt-2 flex justify-end gap-2.5">
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setProposeOpen(false)}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn" disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Propose swap'}
-              </button>
-            </div>
-          </form>
-        </Modal>
       )}
     </>
   );

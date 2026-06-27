@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { getAggregateReport, type TierSummary } from '../../api/reports';
+import BackDashboardButton from '../../components/BackDashboardButton';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
@@ -45,9 +46,7 @@ export default function AggregatedReportsPage() {
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Dashboard
-      </Link>
+      <BackDashboardButton />
 
       <section className="card">
         <h2 className="m-0 text-[1.1rem]">Aggregated reports</h2>

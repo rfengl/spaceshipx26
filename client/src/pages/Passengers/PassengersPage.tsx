@@ -1,29 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import { usePersistentState } from '../../hooks/usePersistentState';
-import Modal from '../../components/Modal/Modal';
+import { usePagination } from '../../hooks/usePagination';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
-import PasswordInput from '../../components/PasswordInput';
 import SearchInput from '../../components/SearchInput';
-import Pagination from '../../components/Pagination';
-import {
-  listPassengers,
-  createPassenger,
-  updatePassenger,
-  deletePassenger,
-  type PassengerChanges,
-} from '../../api/passengers';
-import {
-  TIER_RANK,
-  type MembershipLevel,
-  type NewPassenger,
-  type Passenger,
-} from '../../types';
-
-const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
-const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
+import PaginationBar from '../../components/PaginationBar';
+import AddPassengerButton from './AddPassengerButton';
+import PassengerFormModal from './PassengerFormModal';
+import { listPassengers, deletePassenger } from '../../api/passengers';
+import { TIER_RANK, type Passenger } from '../../types';
+import BackDashboardButton from '../../components/BackDashboardButton';
 
 type SortKey = 'name' | 'username' | 'membershipLevel';
 
@@ -54,15 +42,7 @@ const SortHeader = ({
     </th>
   );
 };
-const emptyForm: NewPassenger = {
-  username: '',
-  password: '',
-  name: '',
-  membershipLevel: 'SILVER',
-};
-
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
-const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
 
 export default function PassengersPage() {
   const { user } = useAuth();
@@ -72,12 +52,7 @@ export default function PassengersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<NewPassenger>(emptyForm);
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
+  const [editing, setEditing] = useState<Passenger | null>(null);
   const [deleting, setDeleting] = useState<Passenger | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -87,9 +62,6 @@ export default function PassengersPage() {
     'passengers.sortDir',
     'asc',
   );
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = usePersistentState('passengers.pageSize', 10);
-
   function onSort(key: SortKey) {
     if (key === sortKey) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -98,11 +70,6 @@ export default function PassengersPage() {
       setSortDir('asc');
     }
   }
-
-  // Any change to the search, sort, or page size returns to the first page.
-  useEffect(() => {
-    setPage(1);
-  }, [query, sortKey, sortDir, pageSize]);
 
   async function refresh() {
     setLoading(true);
@@ -120,88 +87,13 @@ export default function PassengersPage() {
     void refresh();
   }, []);
 
-  function openCreate() {
-    setEditingId(null);
-    setForm(emptyForm);
-    setConfirmPassword('');
-    setError(null);
-    setFormOpen(true);
-  }
-
-  function openEdit(passenger: Passenger) {
-    setEditingId(passenger.id);
-    // Never load the current access code — blank means "keep unchanged".
-    setForm({
-      username: passenger.username,
-      password: '',
-      name: passenger.name,
-      membershipLevel: passenger.membershipLevel,
-    });
-    setConfirmPassword('');
-    setError(null);
-    setFormOpen(true);
-  }
-
-  function closeForm() {
-    setFormOpen(false);
-    setEditingId(null);
-    setForm(emptyForm);
-    setConfirmPassword('');
-    setError(null);
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    const name = form.name.trim();
-    const username = form.username.trim();
-    if (!name || !username) {
-      setError('Name and username are required.');
-      return;
-    }
-
-    const changingPassword = form.password !== '';
-    if (!editingId && !changingPassword) {
-      setError('An access code is required.');
-      return;
-    }
-    if (changingPassword) {
-      if (form.password.length < 4) {
-        setError('Access code must be at least 4 characters.');
-        return;
-      }
-      if (form.password !== confirmPassword) {
-        setError('Access codes do not match.');
-        return;
-      }
-    }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      if (editingId) {
-        const changes: PassengerChanges = {
-          name,
-          username,
-          membershipLevel: form.membershipLevel,
-        };
-        if (changingPassword) changes.password = form.password;
-        await updatePassenger(editingId, changes);
-      } else {
-        await createPassenger({
-          username,
-          password: form.password,
-          name,
-          membershipLevel: form.membershipLevel,
-        });
-      }
-      closeForm();
-      await refresh();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  // Patch the roster in place (add if new) after a create / edit.
+  const applyPassenger = (p: Passenger) =>
+    setPassengers((prev) =>
+      prev.some((x) => x.id === p.id)
+        ? prev.map((x) => (x.id === p.id ? p : x))
+        : [p, ...prev],
+    );
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -218,45 +110,43 @@ export default function PassengersPage() {
     }
   }
 
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? passengers.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.username.toLowerCase().includes(q) ||
-          p.membershipLevel.toLowerCase().includes(q),
-      )
-    : passengers;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return passengers;
+    return passengers.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.username.toLowerCase().includes(q) ||
+        p.membershipLevel.toLowerCase().includes(q),
+    );
+  }, [passengers, query]);
 
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
-    if (sortKey === 'membershipLevel') {
-      return (TIER_RANK[a.membershipLevel] - TIER_RANK[b.membershipLevel]) * dir;
-    }
-    return a[sortKey].localeCompare(b[sortKey]) * dir;
-  });
+    return [...filtered].sort((a, b) => {
+      if (sortKey === 'membershipLevel') {
+        return (TIER_RANK[a.membershipLevel] - TIER_RANK[b.membershipLevel]) * dir;
+      }
+      return a[sortKey].localeCompare(b[sortKey]) * dir;
+    });
+  }, [filtered, sortKey, sortDir]);
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const paged = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const { paged, paging } = usePagination(sorted, {
+    storageKey: 'passengers.pageSize',
+    resetKey: `${query}|${sortKey}|${sortDir}`,
+  });
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Dashboard
-      </Link>
+      <BackDashboardButton />
 
       <section className="card">
         <div className="flex items-center justify-between gap-4 max-sm:mb-4">
           <h2 className="m-0 text-[1.1rem]">Passengers</h2>
-          {isCrew && (
-            <button className="btn" onClick={openCreate}>
-              + Add passenger
-            </button>
-          )}
+          {isCrew && <AddPassengerButton onCreated={applyPassenger} />}
         </div>
 
-        {error && !formOpen && <p className="error mt-3">⚠ {error}</p>}
+        {error && <p className="error mt-3">⚠ {error}</p>}
 
         {loading && passengers.length === 0 ? (
           <p className="muted mt-3">Loading passengers…</p>
@@ -315,7 +205,7 @@ export default function PassengersPage() {
                         </td>
                         {isCrew && (
                           <td className="row-actions">
-                            <button className="link-btn" onClick={() => openEdit(p)}>
+                            <button className="link-btn" onClick={() => setEditing(p)}>
                               Edit
                             </button>
                             <button
@@ -331,110 +221,19 @@ export default function PassengersPage() {
                   </tbody>
                 </table>
 
-                <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-                  <label className="flex items-center gap-2 text-[0.8rem] text-[#9fb3d8]">
-                    Rows per page
-                    <select
-                      className="input py-[0.4rem]"
-                      value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
-                    >
-                      {PAGE_SIZE_OPTIONS.map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Pagination page={safePage} pageCount={pageCount} onPage={setPage} />
-                </div>
+                <PaginationBar {...paging} />
               </>
             )}
           </>
         )}
       </section>
 
-      {formOpen && (
-        <Modal title={editingId ? 'Edit passenger' : 'New passenger'} onClose={closeForm}>
-          <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
-            <label className={fieldLabel}>
-              Name
-              <input
-                type="text"
-                className="input"
-                value={form.name}
-                placeholder="e.g. Nova Reyes"
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                autoFocus
-                required
-              />
-            </label>
-
-            <label className={fieldLabel}>
-              Username
-              <input
-                type="text"
-                className="input"
-                value={form.username}
-                placeholder="e.g. nova.reyes"
-                autoComplete="username"
-                onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                required
-              />
-            </label>
-
-            <label className={fieldLabel}>
-              {editingId ? 'Access Code (leave blank to keep current)' : 'Access Code'}
-              <PasswordInput
-                value={form.password}
-                onChange={(v) => setForm((f) => ({ ...f, password: v }))}
-                placeholder={editingId ? '••••••••' : 'at least 4 characters'}
-                required={!editingId}
-              />
-            </label>
-
-            <label className={fieldLabel}>
-              Confirm Access Code
-              <PasswordInput
-                value={confirmPassword}
-                onChange={setConfirmPassword}
-                placeholder="re-enter access code"
-                required={!editingId}
-              />
-            </label>
-
-            <label className={fieldLabel}>
-              Membership tier
-              <select
-                className="input"
-                value={form.membershipLevel}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    membershipLevel: e.target.value as MembershipLevel,
-                  }))
-                }
-              >
-                {TIERS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {error && <p className="error m-0 text-[0.85rem]">⚠ {error}</p>}
-
-            <div className="mt-4 flex justify-end gap-2.5">
-              <button type="button" className="btn-ghost" onClick={closeForm}>
-                Cancel
-              </button>
-              <button type="submit" className="btn" disabled={submitting}>
-                {submitting ? 'Saving…' : editingId ? 'Save' : 'Add passenger'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+      {editing && (
+        <PassengerFormModal
+          passenger={editing}
+          onClose={() => setEditing(null)}
+          onSaved={applyPassenger}
+        />
       )}
 
       {deleting && (

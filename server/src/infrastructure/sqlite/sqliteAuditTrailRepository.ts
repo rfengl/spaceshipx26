@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { DB } from '../../db/connection.js';
 import type { AuditEntry } from '../../domain/models.js';
 import type {
+  AuditFilter,
+  AuditPage,
   AuditTrailRepository,
   RecordActivity,
   ResourceUsage,
@@ -25,6 +27,34 @@ const ENRICHED = `
   JOIN resources r ON r.id = a.resource_id
 `;
 
+// Builds a parameterized WHERE clause for the active filters. Values are bound
+// as named parameters (never interpolated), and the date bounds compare against
+// the YYYY-MM-DD prefix of the ISO timestamp.
+function buildWhere(filter: AuditFilter): {
+  where: string;
+  params: Record<string, string>;
+} {
+  const conds: string[] = [];
+  const params: Record<string, string> = {};
+  if (filter.userId) {
+    conds.push('a.user_id = @userId');
+    params.userId = filter.userId;
+  }
+  if (filter.resourceId) {
+    conds.push('a.resource_id = @resourceId');
+    params.resourceId = filter.resourceId;
+  }
+  if (filter.from) {
+    conds.push('substr(a.created_at, 1, 10) >= @from');
+    params.from = filter.from;
+  }
+  if (filter.to) {
+    conds.push('substr(a.created_at, 1, 10) <= @to');
+    params.to = filter.to;
+  }
+  return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params };
+}
+
 export class SqliteAuditTrailRepository implements AuditTrailRepository {
   constructor(private readonly db: DB) {}
 
@@ -44,10 +74,22 @@ export class SqliteAuditTrailRepository implements AuditTrailRepository {
       );
   }
 
-  recent(limit: number): AuditEntry[] {
-    return this.db
-      .prepare(`${ENRICHED} ORDER BY at DESC LIMIT ?`)
-      .all(limit) as AuditEntry[];
+  search(filter: AuditFilter, limit: number, offset: number): AuditPage {
+    const { where, params } = buildWhere(filter);
+
+    const total = (
+      this.db.prepare(`SELECT COUNT(*) AS n FROM audit_trail a ${where}`).get(params) as {
+        n: number;
+      }
+    ).n;
+
+    const entries = this.db
+      .prepare(
+        `${ENRICHED} ${where} ORDER BY a.created_at DESC LIMIT @limit OFFSET @offset`,
+      )
+      .all({ ...params, limit, offset }) as AuditEntry[];
+
+    return { entries, total };
   }
 
   topUsed(limit: number): ResourceUsage[] {

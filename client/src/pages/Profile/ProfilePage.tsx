@@ -2,10 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
-import Modal from '../../components/Modal/Modal';
 import PasswordInput from '../../components/PasswordInput';
+import ReauthConfirmModal from './ReauthConfirmModal';
 import { getMyProfile, updateMyProfile, type ProfileUpdate } from '../../api/profile';
 import type { Passenger } from '../../types';
+import BackDashboardButton from '../../components/BackDashboardButton';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
@@ -23,11 +24,8 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Re-authentication modal
+  // Re-authentication modal (the modal owns the code input + busy/error state).
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [currentCode, setCurrentCode] = useState('');
-  const [modalError, setModalError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getMyProfile()
@@ -59,45 +57,29 @@ export default function ProfilePage() {
       }
     }
     setError(null);
-    setCurrentCode('');
-    setModalError(null);
     setConfirmOpen(true);
   }
 
-  async function doSave() {
-    if (!currentCode) {
-      setModalError('Enter your current access code.');
-      return;
-    }
-    setSaving(true);
-    setModalError(null);
-    try {
-      const update: ProfileUpdate = {
-        name: name.trim(),
-        username: username.trim(),
-        currentPassword: currentCode,
-      };
-      if (password !== '') update.password = password;
-      const updated = await updateMyProfile(update);
-      setProfile(updated);
-      setPassword('');
-      setConfirm('');
-      setCurrentCode('');
-      setConfirmOpen(false);
-      await refreshUser();
-      setSaved(true);
-    } catch (e) {
-      setModalError(errMsg(e));
-    } finally {
-      setSaving(false);
-    }
+  // Runs after the modal collects the current access code; throws on failure so
+  // the modal can show the error and stay open.
+  async function save(currentPassword: string) {
+    const update: ProfileUpdate = {
+      name: name.trim(),
+      username: username.trim(),
+      currentPassword,
+    };
+    if (password !== '') update.password = password;
+    const updated = await updateMyProfile(update);
+    setProfile(updated);
+    setPassword('');
+    setConfirm('');
+    await refreshUser();
+    setSaved(true);
   }
 
   return (
     <>
-      <Link to="/" className="back-link">
-        ← Dashboard
-      </Link>
+      <BackDashboardButton />
 
       <section className="card">
         <h2 className="m-0 text-[1.1rem]">Your profile</h2>
@@ -180,55 +162,7 @@ export default function ProfilePage() {
       </section>
 
       {confirmOpen && (
-        <Modal
-          title="Confirm changes"
-          onClose={() => {
-            setConfirmOpen(false);
-            setCurrentCode('');
-            setModalError(null);
-          }}
-        >
-          <form
-            className="flex flex-col gap-3.5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void doSave();
-            }}
-          >
-            <p className="muted m-0 text-[0.85rem]">
-              Enter your <strong>current</strong> access code to save these changes.
-            </p>
-            <label className={fieldLabel}>
-              Current Access Code
-              <PasswordInput
-                value={currentCode}
-                onChange={setCurrentCode}
-                placeholder="current access code"
-                autoComplete="current-password"
-                required
-              />
-            </label>
-
-            {modalError && <p className="error m-0 text-[0.85rem]">⚠ {modalError}</p>}
-
-            <div className="mt-2 flex justify-end gap-2.5">
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => {
-                  setConfirmOpen(false);
-                  setCurrentCode('');
-                  setModalError(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn" disabled={saving}>
-                {saving ? 'Saving…' : 'Confirm & save'}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <ReauthConfirmModal onConfirm={save} onClose={() => setConfirmOpen(false)} />
       )}
     </>
   );
