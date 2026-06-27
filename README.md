@@ -91,10 +91,13 @@ loop and no "refresh to see changes". Concretely, all of these broadcast instant
   pushes for resources their **membership tier** can access — the exact same gate as
   `GET /api/me/resources`, so nothing above a passenger's tier is ever leaked over the
   socket. (Removals are just an id with no detail, so they go to everyone.)
-- **Patch, don't refetch.** Each message carries the one changed resource, and the client
-  patches just that row in place — the live crew dashboard never refetches the whole list.
-  A value-equality **no-op guard** ([`sameResource.ts`](client/src/utils/sameResource.ts))
-  drops echoes that carry no real change, avoiding needless re-renders.
+- **Patch where the full list is held; refetch where it's ranked.** Pages that hold the
+  whole list — the crew **Resources** page and the **passenger dashboard** — patch just
+  the one changed row in place (no full refetch), guarded by a value-equality **no-op
+  guard** ([`sameResource.ts`](client/src/utils/sameResource.ts)) that drops echoes
+  carrying no real change. The crew **home dashboard**'s "lowest stock" panel is a
+  _ranked subset_ of the whole inventory, so it refetches that subset on each change
+  instead — patching a single row couldn't correctly re-rank it.
 - **Self-healing.** The client auto-reconnects with backoff after a drop; the server
   cleans up on close/error.
 
@@ -118,7 +121,7 @@ self-censor.
 client/src/
   pages/
     Login/                 cockpit login
-    Dashboard/             crew home (live resource board)
+    Dashboard/             crew home (live "lowest stock" panel)
     PassengerDashboard/    passenger home (tier-filtered, live)
     Resources/             crew CRUD + refill / write-off / (de)commission modals
     Passengers/            crew CRUD (add / edit / delete) modals

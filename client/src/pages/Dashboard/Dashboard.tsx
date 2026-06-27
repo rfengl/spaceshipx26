@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { getShortages } from '../../api/resources';
+import { useResourceSocket } from '../../hooks/useResourceSocket';
 import type { Resource } from '../../types';
 
 const NAV_ITEMS = [
@@ -48,11 +49,25 @@ function stockCard(remaining: number, max: number) {
 export default function Dashboard() {
   const [shortages, setShortages] = useState<Resource[]>([]);
 
-  useEffect(() => {
+  const loadShortages = () => {
     getShortages()
       .then(setShortages)
       .catch(() => setShortages([]));
+  };
+
+  useEffect(() => {
+    loadShortages();
   }, []);
+
+  // Live "lowest stock" panel. Any resource change can re-rank this list — a
+  // refill lifts an item out, a use can push a new one in — and the ranking
+  // spans the whole inventory, which this view doesn't hold. So the correct
+  // live behaviour is to refetch the ranked subset, not patch a single row.
+  useResourceSocket((change) => {
+    if (change.type === 'resource.updated' || change.type === 'resource.removed') {
+      loadShortages();
+    }
+  });
 
   return (
     <>
