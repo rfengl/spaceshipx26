@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
+import Pagination from '../../components/Pagination';
 import {
   listResources,
   createResource,
@@ -12,10 +13,25 @@ import {
   refillResource,
   deleteResource,
 } from '../../api/resources';
-import type { MembershipLevel, NewResource, Resource } from '../../types';
+import {
+  TIER_RANK,
+  type MembershipLevel,
+  type NewResource,
+  type Resource,
+} from '../../types';
 
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
 const emptyForm: NewResource = { name: '', minLevel: 'SILVER', maxQty: 1 };
+const PAGE_SIZE = 6;
+
+type SortKey = 'name' | 'minLevel' | 'remainingQty' | 'status';
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'minLevel', label: 'Tier' },
+  { value: 'remainingQty', label: 'Stock' },
+  { value: 'status', label: 'Status' },
+];
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
@@ -54,6 +70,14 @@ export default function ResourcesPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+
+  // Any change to the search or sort returns to the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [query, sortKey, sortDir]);
 
   async function refresh() {
     setLoading(true);
@@ -178,6 +202,25 @@ export default function ResourcesPage() {
       )
     : resources;
 
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    switch (sortKey) {
+      case 'minLevel':
+        return (TIER_RANK[a.minLevel] - TIER_RANK[b.minLevel]) * dir;
+      case 'remainingQty':
+        return (a.remainingQty - b.remainingQty) * dir;
+      case 'status':
+        // In-service first when ascending.
+        return (Number(a.isDecommissioned) - Number(b.isDecommissioned)) * dir;
+      default:
+        return a.name.localeCompare(b.name) * dir;
+    }
+  });
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paged = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   return (
     <>
       <Link to="/" className="back-link">
@@ -202,77 +245,111 @@ export default function ResourcesPage() {
           <p className="muted mt-3">No resources yet.</p>
         ) : (
           <>
-            <div className="mt-3">
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <SearchInput
                 value={query}
                 onChange={setQuery}
                 placeholder="Search by name or tier…"
               />
+              <div className="flex items-center gap-2">
+                <label className="muted text-[0.8rem]" htmlFor="resource-sort">
+                  Sort
+                </label>
+                <select
+                  id="resource-sort"
+                  className="input py-[0.4rem]"
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as SortKey)}
+                >
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn-ghost px-2.5 py-[0.4rem]"
+                  aria-label={`Sort ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
+                  title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                  onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                >
+                  {sortDir === 'asc' ? '▲' : '▼'}
+                </button>
+              </div>
             </div>
 
             {filtered.length === 0 ? (
               <p className="muted mt-3">No resources match “{query}”.</p>
             ) : (
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filtered.map((r) => {
-                  const full = r.remainingQty >= r.maxQty;
-                  const focused = r.id === focusId;
-                  return (
-                    <div
-                      key={r.id}
-                      ref={focused ? focusRef : undefined}
-                      className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
-                        r.remainingQty,
-                        r.maxQty,
-                      )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''} ${
-                        r.isDecommissioned ? 'opacity-60' : ''
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
-                        <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
-                      </div>
-                      <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
-                        <strong className="text-[1.05rem] text-[#e8eefc]">
-                          {r.remainingQty}
-                        </strong>{' '}
-                        / {r.maxQty} in stock
-                      </p>
-                      <p className="m-0 text-[0.8rem] text-[#9fb3d8]">
-                        {r.isDecommissioned ? 'Decommissioned' : 'Active'}
-                      </p>
-
-                      {isCrew && (
-                        <div className="row-actions mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2">
-                          <button
-                            className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
-                            disabled={r.isDecommissioned || full}
-                            title={full ? 'Already at maximum' : undefined}
-                            onClick={() => openRefill(r)}
-                          >
-                            Refill
-                          </button>
-                          <button className="link-btn" onClick={() => openEdit(r)}>
-                            Edit
-                          </button>
-                          <button
-                            className="link-btn"
-                            onClick={() => void toggleDecommission(r)}
-                          >
-                            {r.isDecommissioned ? 'Recommission' : 'Decommission'}
-                          </button>
-                          <button
-                            className="link-btn text-[#ff9d9d]"
-                            onClick={() => setDeleting(r)}
-                          >
-                            Delete
-                          </button>
+              <>
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {paged.map((r) => {
+                    const full = r.remainingQty >= r.maxQty;
+                    const focused = r.id === focusId;
+                    return (
+                      <div
+                        key={r.id}
+                        ref={focused ? focusRef : undefined}
+                        className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
+                          r.remainingQty,
+                          r.maxQty,
+                        )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''} ${
+                          r.isDecommissioned ? 'opacity-60' : ''
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
+                          <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                        <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
+                          <strong className="text-[1.05rem] text-[#e8eefc]">
+                            {r.remainingQty}
+                          </strong>{' '}
+                          / {r.maxQty} in stock
+                        </p>
+                        <p className="m-0 text-[0.8rem] text-[#9fb3d8]">
+                          {r.isDecommissioned ? 'Decommissioned' : 'Active'}
+                        </p>
+
+                        {isCrew && (
+                          <div className="row-actions mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2">
+                            <button
+                              className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
+                              disabled={r.isDecommissioned || full}
+                              title={full ? 'Already at maximum' : undefined}
+                              onClick={() => openRefill(r)}
+                            >
+                              Refill
+                            </button>
+                            <button className="link-btn" onClick={() => openEdit(r)}>
+                              Edit
+                            </button>
+                            <button
+                              className="link-btn"
+                              onClick={() => void toggleDecommission(r)}
+                            >
+                              {r.isDecommissioned ? 'Recommission' : 'Decommission'}
+                            </button>
+                            <button
+                              className="link-btn text-[#ff9d9d]"
+                              onClick={() => setDeleting(r)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <Pagination
+                  page={safePage}
+                  pageCount={pageCount}
+                  onPage={setPage}
+                  className="mt-4"
+                />
+              </>
             )}
           </>
         )}

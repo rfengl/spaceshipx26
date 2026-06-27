@@ -8,6 +8,13 @@ export interface AuthUser {
 
 export type MembershipLevel = 'SILVER' | 'GOLD' | 'PLATINUM';
 
+// Tier ordering (lowest → highest), for sorting by membership level.
+export const TIER_RANK: Record<MembershipLevel, number> = {
+  SILVER: 1,
+  GOLD: 2,
+  PLATINUM: 3,
+};
+
 // A person aboard the ship (passenger or crew lead).
 export interface Passenger {
   id: string;

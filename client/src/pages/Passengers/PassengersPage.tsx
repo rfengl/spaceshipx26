@@ -6,6 +6,7 @@ import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import PasswordInput from '../../components/PasswordInput';
 import SearchInput from '../../components/SearchInput';
+import Pagination from '../../components/Pagination';
 import {
   listPassengers,
   createPassenger,
@@ -13,9 +14,45 @@ import {
   deletePassenger,
   type PassengerChanges,
 } from '../../api/passengers';
-import type { MembershipLevel, NewPassenger, Passenger } from '../../types';
+import {
+  TIER_RANK,
+  type MembershipLevel,
+  type NewPassenger,
+  type Passenger,
+} from '../../types';
 
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
+
+type SortKey = 'name' | 'username' | 'membershipLevel';
+
+const SortHeader = ({
+  label,
+  column,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  column: SortKey;
+  sortKey: SortKey;
+  sortDir: 'asc' | 'desc';
+  onSort: (key: SortKey) => void;
+}) => {
+  const active = sortKey === column;
+  return (
+    <th
+      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className="cursor-pointer select-none hover:text-[#e8eefc]"
+      onClick={() => onSort(column)}
+    >
+      {label}{' '}
+      <span className="text-[#5ad0ff]">
+        {active ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+      </span>
+    </th>
+  );
+};
 const emptyForm: NewPassenger = {
   username: '',
   password: '',
@@ -44,6 +81,24 @@ export default function PassengersPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  function onSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  // Any change to the search, sort, or page size returns to the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [query, sortKey, sortDir, pageSize]);
 
   async function refresh() {
     setLoading(true);
@@ -169,6 +224,18 @@ export default function PassengersPage() {
       )
     : passengers;
 
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (sortKey === 'membershipLevel') {
+      return (TIER_RANK[a.membershipLevel] - TIER_RANK[b.membershipLevel]) * dir;
+    }
+    return a[sortKey].localeCompare(b[sortKey]) * dir;
+  });
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const paged = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   return (
     <>
       <Link to="/" className="back-link">
@@ -204,42 +271,80 @@ export default function PassengersPage() {
             {filtered.length === 0 ? (
               <p className="muted mt-3">No passengers match “{query}”.</p>
             ) : (
-              <table className="data-table mt-3">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Username</th>
-                    <th>Membership tier</th>
-                    {isCrew && <th aria-label="Actions" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((p) => (
-                    <tr key={p.id}>
-                      <td data-label="Name">{p.name}</td>
-                      <td data-label="Username">{p.username}</td>
-                      <td data-label="Membership tier">
-                        <span className={`tier tier-${p.membershipLevel}`}>
-                          {p.membershipLevel}
-                        </span>
-                      </td>
-                      {isCrew && (
-                        <td className="row-actions">
-                          <button className="link-btn" onClick={() => openEdit(p)}>
-                            Edit
-                          </button>
-                          <button
-                            className="link-btn text-[#ff9d9d]"
-                            onClick={() => setDeleting(p)}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      )}
+              <>
+                <table className="data-table mt-3">
+                  <thead>
+                    <tr>
+                      <SortHeader
+                        label="Name"
+                        column="name"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={onSort}
+                      />
+                      <SortHeader
+                        label="Username"
+                        column="username"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={onSort}
+                      />
+                      <SortHeader
+                        label="Membership tier"
+                        column="membershipLevel"
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={onSort}
+                      />
+                      {isCrew && <th aria-label="Actions" />}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {paged.map((p) => (
+                      <tr key={p.id}>
+                        <td data-label="Name">{p.name}</td>
+                        <td data-label="Username">{p.username}</td>
+                        <td data-label="Membership tier">
+                          <span className={`tier tier-${p.membershipLevel}`}>
+                            {p.membershipLevel}
+                          </span>
+                        </td>
+                        {isCrew && (
+                          <td className="row-actions">
+                            <button className="link-btn" onClick={() => openEdit(p)}>
+                              Edit
+                            </button>
+                            <button
+                              className="link-btn text-[#ff9d9d]"
+                              onClick={() => setDeleting(p)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+                  <label className="flex items-center gap-2 text-[0.8rem] text-[#9fb3d8]">
+                    Rows per page
+                    <select
+                      className="input py-[0.4rem]"
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Pagination page={safePage} pageCount={pageCount} onPage={setPage} />
+                </div>
+              </>
             )}
           </>
         )}
