@@ -17,6 +17,7 @@ const fmt = (at: string) =>
 const ACTION_META: Record<AuditAction, { label: string; cls: string }> = {
   USE: { label: 'Used', cls: 'bg-[rgba(90,208,255,0.18)] text-[#afe3ff]' },
   REFILL: { label: 'Refilled', cls: 'bg-[rgba(120,240,160,0.18)] text-[#8ef5b0]' },
+  WRITE_OFF: { label: 'Written off', cls: 'bg-[rgba(255,140,80,0.2)] text-[#ffb27a]' },
   PROVISION: { label: 'Provisioned', cls: 'bg-[rgba(150,170,255,0.2)] text-[#bcc8ff]' },
   DECOMMISSION: {
     label: 'Decommissioned',
@@ -29,9 +30,13 @@ const ACTION_META: Record<AuditAction, { label: string; cls: string }> = {
   DELETE: { label: 'Deleted', cls: 'bg-[rgba(255,99,99,0.18)] text-[#ff9d9d]' },
 };
 
-// Quantity shown per activity: −1 for a use, +N for a refill, nothing otherwise.
-const qtyLabel = (e: AuditEntry) =>
-  e.type === 'USE' ? '−1' : e.type === 'REFILL' ? `+${e.amount}` : '—';
+// Quantity shown per activity: −N when stock leaves (use/write-off), +N for a
+// refill, nothing for lifecycle actions.
+const qtyLabel = (e: AuditEntry) => {
+  if (e.type === 'USE' || e.type === 'WRITE_OFF') return `−${e.amount}`;
+  if (e.type === 'REFILL') return `+${e.amount}`;
+  return '—';
+};
 
 // Distinct {value, label} options for a filter dropdown, sorted by label.
 function options(
@@ -235,7 +240,10 @@ export default function AuditTrailPage() {
                           {meta.label}
                         </span>
                       </td>
-                      <td data-label="Resource">{e.resourceName}</td>
+                      <td data-label="Resource">
+                        {e.resourceName}
+                        {e.note && <span className="text-[#7f93b8]"> · {e.note}</span>}
+                      </td>
                       <td data-label="Passenger">{e.userName}</td>
                       <td className="num" data-label="Qty">
                         {qtyLabel(e)}

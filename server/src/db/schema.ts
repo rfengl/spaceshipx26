@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS resources (
   name          TEXT NOT NULL,
   min_level         TEXT NOT NULL CHECK (min_level IN ('SILVER','GOLD','PLATINUM')),
   max_qty           INTEGER NOT NULL DEFAULT 1 CHECK (max_qty >= 1),
-  remaining_qty     INTEGER NOT NULL DEFAULT 1 CHECK (remaining_qty >= 0),
+  -- Stock can never go negative nor exceed capacity (defence in depth; the
+  -- application also guards every adjustment).
+  remaining_qty     INTEGER NOT NULL DEFAULT 1 CHECK (remaining_qty >= 0 AND remaining_qty <= max_qty),
   -- Two independent lifecycle flags (rows are never hard-deleted):
   --   active = 0            -> soft-deleted; hidden everywhere.
   --   is_decommissioned = 1 -> taken out of service; still visible, flagged.
@@ -39,9 +41,10 @@ CREATE TABLE IF NOT EXISTS audit_trail (
   user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   resource_id TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
   action      TEXT NOT NULL CHECK (
-                action IN ('USE','REFILL','PROVISION','DECOMMISSION','RECOMMISSION','DELETE')
+                action IN ('USE','REFILL','PROVISION','DECOMMISSION','RECOMMISSION','DELETE','WRITE_OFF')
               ),
   amount      INTEGER NOT NULL DEFAULT 0,
+  note        TEXT,
   created_at  TEXT NOT NULL
 );
 

@@ -42,3 +42,16 @@ export async function fetchMe(): Promise<AuthUser> {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   return user;
 }
+
+/**
+ * Exchange the current (still-valid) token for a fresh one to keep an active
+ * session alive past the 1-hour expiry. Also resyncs the user's live role.
+ */
+export async function refreshToken(): Promise<AuthUser> {
+  const { token, user } = await apiFetch<LoginResponse>('/api/auth/refresh', {
+    method: 'POST',
+  });
+  setToken(token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  return user;
+}

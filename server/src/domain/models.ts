@@ -64,9 +64,10 @@ export type ResourceEventAction =
   | 'RECOMMISSION'
   | 'DELETE';
 
-// A single line in the resource audit trail: a passenger use, a crew refill, or
-// a crew lifecycle action — enriched with the actor's and resource's names.
-export type AuditAction = 'USE' | 'REFILL' | ResourceEventAction;
+// A single line in the resource audit trail: a passenger use, a crew refill, a
+// crew write-off (removing spoiled/broken stock), or a lifecycle action —
+// enriched with the actor's and resource's names.
+export type AuditAction = 'USE' | 'REFILL' | 'WRITE_OFF' | ResourceEventAction;
 
 export interface AuditEntry {
   id: string;
@@ -76,6 +77,7 @@ export interface AuditEntry {
   resourceId: string;
   resourceName: string;
   amount: number;
+  note: string | null;
   at: string;
 }
 

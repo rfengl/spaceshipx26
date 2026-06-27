@@ -13,9 +13,13 @@ import AggregatedReportsPage from './pages/Reports/AggregatedReportsPage';
 import PersonalHistoryPage from './pages/PersonalHistory/PersonalHistoryPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import { useAuth } from './hooks/useAuth';
-import { loadStoredUser, logout, fetchMe } from './api/auth';
+import { loadStoredUser, logout, fetchMe, refreshToken } from './api/auth';
 import { getToken } from './api/client';
 import type { AuthUser } from './types';
+
+// While a session is active, swap the token for a fresh one well within its
+// 1-hour expiry so staying on the site keeps the user logged in.
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 // Home is role-specific: crew leads get the admin dashboard, passengers get
 // their resource-discovery dashboard.
@@ -54,6 +58,20 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  // Keep an active session alive: while logged in, periodically swap the token
+  // for a fresh one (and resync the live role). A failed refresh is handled by
+  // the API client on the next request.
+  const isLoggedIn = Boolean(user);
+  useEffect(() => {
+    if (!isLoggedIn || !getToken()) return;
+    const id = setInterval(() => {
+      refreshToken()
+        .then(setUser)
+        .catch(() => {});
+    }, REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isLoggedIn]);
 
   if (verifying) {
     return (

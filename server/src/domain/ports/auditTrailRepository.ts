@@ -5,6 +5,7 @@ export interface RecordActivity {
   resourceId: string;
   action: AuditAction;
   amount?: number; // units involved; defaults to 0
+  note?: string; // optional context, e.g. a write-off reason
 }
 
 export interface ResourceUsage {

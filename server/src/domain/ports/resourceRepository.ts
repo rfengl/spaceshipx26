@@ -27,4 +27,9 @@ export interface ResourceRepository {
    * Returns null if not found or the increase would overflow the cap.
    */
   addRemaining(id: string, amount: number): Resource | null;
+  /**
+   * Atomically remove `amount` units from remaining stock (e.g. a write-off).
+   * Returns null if not found or there isn't enough stock to remove.
+   */
+  removeRemaining(id: string, amount: number): Resource | null;
 }

@@ -39,4 +39,13 @@ export class AuthService {
     };
     return { token: this.tokens.sign(authUser), user: authUser };
   }
+
+  /**
+   * Issue a fresh token for an already-authenticated user (sliding session).
+   * The caller is validated live by the `authenticate` middleware, so `user`
+   * already reflects the current role.
+   */
+  refresh(user: AuthUser): LoginResult {
+    return { token: this.tokens.sign(user), user };
+  }
 }

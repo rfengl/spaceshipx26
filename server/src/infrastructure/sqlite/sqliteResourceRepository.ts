@@ -134,4 +134,13 @@ export class SqliteResourceRepository implements ResourceRepository {
       .run(amount, id, amount).changes;
     return changed > 0 ? this.findById(id) : null;
   }
+
+  removeRemaining(id: string, amount: number): Resource | null {
+    const changed = this.db
+      .prepare(
+        'UPDATE resources SET remaining_qty = remaining_qty - ? WHERE id = ? AND remaining_qty >= ?',
+      )
+      .run(amount, id, amount).changes;
+    return changed > 0 ? this.findById(id) : null;
+  }
 }

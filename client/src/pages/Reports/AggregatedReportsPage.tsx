@@ -114,7 +114,25 @@ export default function AggregatedReportsPage() {
                   {totals.resources}
                 </td>
                 <td data-label="Stock">
-                  {totals.remaining} / {totals.capacity}
+                  <div className="flex min-w-[8rem] flex-col gap-1">
+                    <span className="text-[0.85rem]">
+                      {totals.remaining} / {totals.capacity}
+                    </span>
+                    <span className="block h-1.5 w-full overflow-hidden rounded bg-white/10">
+                      <span
+                        className={`block h-full rounded ${barColor(
+                          totals.capacity > 0 ? totals.remaining / totals.capacity : 0,
+                        )}`}
+                        style={{
+                          width: `${Math.round(
+                            (totals.capacity > 0
+                              ? totals.remaining / totals.capacity
+                              : 0) * 100,
+                          )}%`,
+                        }}
+                      />
+                    </span>
+                  </div>
                 </td>
                 <td className="num" data-label="Uses">
                   {totals.uses}

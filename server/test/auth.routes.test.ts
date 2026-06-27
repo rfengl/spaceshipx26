@@ -60,6 +60,44 @@ test('POST /api/auth/login rejects bad credentials with 401', async () => {
   });
 });
 
+test('POST /api/auth/refresh issues a fresh token (401 without one)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const login = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'ada.lovelace', password: DEMO_PASSWORD }),
+    });
+    const { token } = await login.json();
+
+    const refreshed = await fetch(`${base}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(refreshed.status, 200);
+    const body = await refreshed.json();
+    assert.equal(typeof body.token, 'string');
+    assert.ok(body.token.length > 0);
+    assert.equal(body.user.username, 'ada.lovelace');
+
+    // The fresh token works for authenticated requests.
+    assert.equal(
+      (
+        await fetch(`${base}/api/auth/me`, {
+          headers: { authorization: `Bearer ${body.token}` },
+        })
+      ).status,
+      200,
+    );
+
+    // No token -> 401.
+    assert.equal(
+      (await fetch(`${base}/api/auth/refresh`, { method: 'POST' })).status,
+      401,
+    );
+  });
+});
+
 test('GET /api/auth/me returns the user with a valid token, 401 without', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {

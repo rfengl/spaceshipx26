@@ -76,6 +76,20 @@ export async function refillResource(id: string, amount: number): Promise<Resour
   ).data;
 }
 
+/** Write off spoiled / broken / lost stock (crew-lead): reduces remaining. */
+export async function writeOffResource(
+  id: string,
+  amount: number,
+  reason: string,
+): Promise<Resource> {
+  return (
+    await apiFetch<Wrapped<Resource>>(`/api/resources/${id}/write-off`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, reason }),
+    })
+  ).data;
+}
+
 /** Soft-delete a resource (crew-lead): flags it inactive so it is hidden. */
 export async function deleteResource(id: string): Promise<void> {
   await apiFetch<void>(`/api/resources/${id}`, { method: 'DELETE' });

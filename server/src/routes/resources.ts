@@ -104,6 +104,13 @@ export function createResourcesRouter(
       const before = resources.findById(req.params.id);
       if (!before) throw notFound();
       const changes = validateUpdate(req.body);
+      // Lowering capacity below the current remaining stock would leave the
+      // resource over capacity — reject it (write off the excess first).
+      if (changes.maxQty !== undefined && changes.maxQty < before.remainingQty) {
+        throw badRequest(
+          `Max quantity cannot be below the current remaining stock (${before.remainingQty}); write off the excess first`,
+        );
+      }
       const updated = resources.update(req.params.id, changes);
       if (!updated) throw notFound();
 
@@ -146,6 +153,22 @@ export function createResourcesRouter(
         req.user!.id,
         req.params.id,
         amount as number,
+      );
+      publisher.publish({ type: 'resource.updated', resource });
+      res.json({ data: resource });
+    }),
+  );
+
+  // Write off spoiled / broken / lost stock (reduces remaining quantity).
+  router.post(
+    '/:id/write-off',
+    asyncHandler(async (req, res) => {
+      const { amount, reason } = (req.body ?? {}) as Record<string, unknown>;
+      const { resource } = inventory.writeOff(
+        req.user!.id,
+        req.params.id,
+        amount as number,
+        typeof reason === 'string' ? reason : undefined,
       );
       publisher.publish({ type: 'resource.updated', resource });
       res.json({ data: resource });

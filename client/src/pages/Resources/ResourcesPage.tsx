@@ -9,11 +9,13 @@ import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
 import Pagination from '../../components/Pagination';
+import ResourceActions from '../../components/ResourceActions';
 import {
   listResources,
   createResource,
   updateResource,
   refillResource,
+  writeOffResource,
   deleteResource,
   getResourceDemand,
 } from '../../api/resources';
@@ -27,6 +29,7 @@ import {
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
 const emptyForm: NewResource = { name: '', minLevel: 'SILVER', maxQty: 1 };
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
+const WRITE_OFF_REASONS = ['Expired', 'Broken', 'Lost', 'Other'];
 
 type SortKey =
   | 'name'
@@ -57,13 +60,20 @@ function stockCard(remaining: number, max: number) {
   return 'border-white/[0.08] bg-white/[0.04]';
 }
 
-// The same shortage hint as a table-row background (no border).
+// Shortage hint as a cell background (matching the card view). Set on the cells
+// rather than the <tr> because a row background paints unreliably under
+// border-collapse.
 function stockRowBg(remaining: number, max: number) {
   const ratio = max > 0 ? remaining / max : 0;
-  if (ratio < 1 / 3) return 'bg-[rgba(255,80,80,0.12)]';
-  if (ratio < 0.5) return 'bg-[rgba(255,200,80,0.1)]';
+  if (ratio < 1 / 3) return '[&>td]:bg-[rgba(255,80,80,0.12)]';
+  if (ratio < 0.5) return '[&>td]:bg-[rgba(255,200,80,0.1)]';
   return '';
 }
+
+// The focused row (arrived-at from a dashboard shortage card) gets a coloured
+// left-edge border, kept separate from the shortage background so both show.
+const FOCUS_ACCENT =
+  '[&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-[#5ad0ff]';
 
 export default function ResourcesPage() {
   const { user } = useAuth();
@@ -93,6 +103,11 @@ export default function ResourcesPage() {
   const [refilling, setRefilling] = useState<Resource | null>(null);
   const [refillAmount, setRefillAmount] = useState(1);
   const [refillBusy, setRefillBusy] = useState(false);
+
+  const [writingOff, setWritingOff] = useState<Resource | null>(null);
+  const [writeOffAmount, setWriteOffAmount] = useState(1);
+  const [writeOffReason, setWriteOffReason] = useState(WRITE_OFF_REASONS[0]);
+  const [writeOffBusy, setWriteOffBusy] = useState(false);
 
   const [deleting, setDeleting] = useState<Resource | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -218,6 +233,30 @@ export default function ResourcesPage() {
       setError(errMsg(e));
     } finally {
       setRefillBusy(false);
+    }
+  }
+
+  function openWriteOff(resource: Resource) {
+    setWritingOff(resource);
+    setWriteOffAmount(1);
+    setWriteOffReason(WRITE_OFF_REASONS[0]);
+    setError(null);
+  }
+
+  async function handleWriteOff(event: FormEvent) {
+    event.preventDefault();
+    if (!writingOff) return;
+    setWriteOffBusy(true);
+    setError(null);
+    try {
+      applyResource(
+        await writeOffResource(writingOff.id, writeOffAmount, writeOffReason),
+      );
+      setWritingOff(null);
+    } catch (e) {
+      setError(errMsg(e));
+    } finally {
+      setWriteOffBusy(false);
     }
   }
 
@@ -367,17 +406,15 @@ export default function ResourcesPage() {
                     </thead>
                     <tbody>
                       {paged.map((r) => {
-                        const full = r.remainingQty >= r.maxQty;
                         const focused = r.id === focusId;
                         return (
                           <tr
                             key={r.id}
                             ref={focused ? setFocusRef : undefined}
-                            className={
-                              focused
-                                ? 'bg-[rgba(90,208,255,0.1)]'
-                                : stockRowBg(r.remainingQty, r.maxQty)
-                            }
+                            className={`${focused ? FOCUS_ACCENT : ''} ${stockRowBg(
+                              r.remainingQty,
+                              r.maxQty,
+                            )}`}
                           >
                             <td data-label="Name">{r.name}</td>
                             <td data-label="Min tier">
@@ -392,34 +429,15 @@ export default function ResourcesPage() {
                               {r.isDecommissioned ? 'Decommissioned' : 'Active'}
                             </td>
                             {isCrew && (
-                              <td className="row-actions">
-                                <button
-                                  className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
-                                  disabled={r.isDecommissioned || full}
-                                  title={full ? 'Already at maximum' : undefined}
-                                  onClick={() => openRefill(r)}
-                                >
-                                  Refill
-                                </button>
-                                <button className="link-btn" onClick={() => openEdit(r)}>
-                                  Edit
-                                </button>
-                                <button
-                                  className={`link-btn ${
-                                    r.isDecommissioned
-                                      ? 'font-semibold text-[#8ef5b0]'
-                                      : ''
-                                  }`}
-                                  onClick={() => void toggleDecommission(r)}
-                                >
-                                  {r.isDecommissioned ? 'Recommission' : 'Decommission'}
-                                </button>
-                                <button
-                                  className="link-btn text-[#ff9d9d]"
-                                  onClick={() => setDeleting(r)}
-                                >
-                                  Delete
-                                </button>
+                              <td data-label="Actions">
+                                <ResourceActions
+                                  resource={r}
+                                  onRefill={openRefill}
+                                  onWriteOff={openWriteOff}
+                                  onEdit={openEdit}
+                                  onToggleDecommission={(x) => void toggleDecommission(x)}
+                                  onDelete={setDeleting}
+                                />
                               </td>
                             )}
                           </tr>
@@ -430,7 +448,6 @@ export default function ResourcesPage() {
                 ) : (
                   <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {paged.map((r) => {
-                      const full = r.remainingQty >= r.maxQty;
                       const focused = r.id === focusId;
                       return (
                         <div
@@ -468,33 +485,15 @@ export default function ResourcesPage() {
                           </div>
 
                           {isCrew && (
-                            <div className="row-actions mt-auto flex flex-wrap justify-end gap-x-3 gap-y-1 pt-2">
-                              <button
-                                className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
-                                disabled={r.isDecommissioned || full}
-                                title={full ? 'Already at maximum' : undefined}
-                                onClick={() => openRefill(r)}
-                              >
-                                Refill
-                              </button>
-                              <button className="link-btn" onClick={() => openEdit(r)}>
-                                Edit
-                              </button>
-                              <button
-                                className={`link-btn ${
-                                  r.isDecommissioned ? 'font-semibold text-[#8ef5b0]' : ''
-                                }`}
-                                onClick={() => void toggleDecommission(r)}
-                              >
-                                {r.isDecommissioned ? 'Recommission' : 'Decommission'}
-                              </button>
-                              <button
-                                className="link-btn text-[#ff9d9d]"
-                                onClick={() => setDeleting(r)}
-                              >
-                                Delete
-                              </button>
-                            </div>
+                            <ResourceActions
+                              resource={r}
+                              className="mt-auto pt-2"
+                              onRefill={openRefill}
+                              onWriteOff={openWriteOff}
+                              onEdit={openEdit}
+                              onToggleDecommission={(x) => void toggleDecommission(x)}
+                              onDelete={setDeleting}
+                            />
                           )}
                         </div>
                       );
@@ -628,6 +627,63 @@ export default function ResourcesPage() {
                   {refillBusy ? 'Refilling…' : `Add ${refillAmount}`}
                 </button>
               </div>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {writingOff && (
+        <Modal title={`Write off ${writingOff.name}`} onClose={() => setWritingOff(null)}>
+          <form className="flex flex-col gap-3.5" onSubmit={handleWriteOff}>
+            <p className="muted m-0 text-[0.85rem]">
+              Remove stock that can no longer be consumed. Currently{' '}
+              <strong>{writingOff.remainingQty}</strong> / {writingOff.maxQty} in stock.
+            </p>
+            <label className={fieldLabel}>
+              Amount to write off
+              <input
+                type="number"
+                className="input"
+                min={1}
+                max={writingOff.remainingQty}
+                value={writeOffAmount}
+                onChange={(e) =>
+                  setWriteOffAmount(
+                    Math.min(
+                      writingOff.remainingQty,
+                      Math.max(1, Number(e.target.value) || 1),
+                    ),
+                  )
+                }
+                autoFocus
+                required
+              />
+            </label>
+            <label className={fieldLabel}>
+              Reason
+              <select
+                className="input"
+                value={writeOffReason}
+                onChange={(e) => setWriteOffReason(e.target.value)}
+              >
+                {WRITE_OFF_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {reason}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="mt-4 flex justify-end gap-2.5">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setWritingOff(null)}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn-danger" disabled={writeOffBusy}>
+                {writeOffBusy ? 'Writing off…' : `Write off ${writeOffAmount}`}
+              </button>
             </div>
           </form>
         </Modal>

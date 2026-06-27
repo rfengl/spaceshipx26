@@ -18,6 +18,7 @@ const ENRICHED = `
          a.resource_id AS resourceId,
          r.name        AS resourceName,
          a.amount      AS amount,
+         a.note        AS note,
          a.created_at  AS at
   FROM audit_trail a
   JOIN users u     ON u.id = a.user_id
@@ -30,7 +31,7 @@ export class SqliteAuditTrailRepository implements AuditTrailRepository {
   record(input: RecordActivity): void {
     this.db
       .prepare(
-        'INSERT INTO audit_trail (id, user_id, resource_id, action, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO audit_trail (id, user_id, resource_id, action, amount, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
         randomUUID(),
@@ -38,6 +39,7 @@ export class SqliteAuditTrailRepository implements AuditTrailRepository {
         input.resourceId,
         input.action,
         input.amount ?? 0,
+        input.note ?? null,
         new Date().toISOString(),
       );
   }

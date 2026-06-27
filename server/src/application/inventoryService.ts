@@ -52,4 +52,38 @@ export class InventoryService {
     });
     return apply();
   }
+
+  /**
+   * Write off `amount` units of stock that can no longer be consumed (expired,
+   * broken, lost). Decrements remaining (never below zero) and records the
+   * reason in the audit trail.
+   */
+  writeOff(
+    userId: string,
+    resourceId: string,
+    amount: number,
+    reason?: string,
+  ): RefillResult {
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw httpError(400, 'Write-off amount must be a positive whole number');
+    }
+
+    const resource = this.resources.findById(resourceId);
+    if (!resource || !resource.active) throw httpError(404, 'Resource not found');
+    if (amount > resource.remainingQty) {
+      throw httpError(
+        400,
+        `Cannot write off more than the remaining stock (${resource.remainingQty})`,
+      );
+    }
+
+    const note = reason?.trim() ? reason.trim() : undefined;
+    const apply = this.db.transaction((): RefillResult => {
+      const updated = this.resources.removeRemaining(resourceId, amount);
+      if (!updated) throw httpError(409, 'Not enough stock to write off');
+      this.audit.record({ userId, resourceId, action: 'WRITE_OFF', amount, note });
+      return { resource: updated };
+    });
+    return apply();
+  }
 }

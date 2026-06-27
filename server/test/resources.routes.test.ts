@@ -216,3 +216,88 @@ test('a passenger cannot refill resources (403) and unauth is rejected (401)', a
     );
   });
 });
+
+test('crew lead can write off stock; cannot exceed remaining; logged with reason', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const cabin = await findResource(base, token, 'Private Cabin'); // 3 / 10
+
+    const ok = await fetch(`${base}/api/resources/${cabin.id}/write-off`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({ amount: 2, reason: 'Expired' }),
+    });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).data.remainingQty, 1); // 3 - 2
+
+    // Writing off more than what's left (2 > 1) is rejected, stock untouched.
+    const tooMuch = await fetch(`${base}/api/resources/${cabin.id}/write-off`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({ amount: 2 }),
+    });
+    assert.equal(tooMuch.status, 400);
+    assert.equal((await findResource(base, token, 'Private Cabin')).remainingQty, 1);
+
+    // The write-off is in the audit trail with its amount and reason.
+    const { data: trail } = await (
+      await fetch(`${base}/api/reports/audit`, { headers: authJson(token) })
+    ).json();
+    const entry = trail.find(
+      (e: { type: string; resourceId: string }) =>
+        e.type === 'WRITE_OFF' && e.resourceId === cabin.id,
+    );
+    assert.ok(entry, 'write-off is recorded');
+    assert.equal(entry.amount, 2);
+    assert.equal(entry.note, 'Expired');
+  });
+});
+
+test('editing max quantity below current remaining stock is rejected (400)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const food = await findResource(base, token, 'Food Supply Station'); // 18 / 20
+
+    // Lowering the cap below the 18 already in stock would overflow capacity.
+    const res = await fetch(`${base}/api/resources/${food.id}`, {
+      method: 'PUT',
+      headers: authJson(token),
+      body: JSON.stringify({ maxQty: 10 }),
+    });
+    assert.equal(res.status, 400);
+    // Stock and capacity are untouched.
+    const after = await findResource(base, token, 'Food Supply Station');
+    assert.equal(after.maxQty, 20);
+    assert.equal(after.remainingQty, 18);
+
+    // Lowering to exactly the remaining stock is allowed.
+    const ok = await fetch(`${base}/api/resources/${food.id}`, {
+      method: 'PUT',
+      headers: authJson(token),
+      body: JSON.stringify({ maxQty: 18 }),
+    });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).data.maxQty, 18);
+  });
+});
+
+test('a passenger cannot write off resources (403)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const crew = await tokenFor(base, 'ada.lovelace');
+    const cabin = await findResource(base, crew, 'Private Cabin');
+    const passenger = await tokenFor(base, 'nova.reyes');
+    assert.equal(
+      (
+        await fetch(`${base}/api/resources/${cabin.id}/write-off`, {
+          method: 'POST',
+          headers: authJson(passenger),
+          body: JSON.stringify({ amount: 1, reason: 'Broken' }),
+        })
+      ).status,
+      403,
+    );
+  });
+});

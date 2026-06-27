@@ -3,6 +3,7 @@ import { apiFetch } from './client';
 export type AuditAction =
   | 'USE'
   | 'REFILL'
+  | 'WRITE_OFF'
   | 'PROVISION'
   | 'DECOMMISSION'
   | 'RECOMMISSION'
@@ -16,6 +17,7 @@ export interface AuditEntry {
   resourceId: string;
   resourceName: string;
   amount: number;
+  note: string | null;
   at: string;
 }
 
