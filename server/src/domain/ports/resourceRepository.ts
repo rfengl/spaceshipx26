@@ -16,5 +16,7 @@ export interface ResourceRepository {
   update(id: string, changes: ResourceUpdate): Resource | null;
   /** Decommission a resource (soft-deactivate). Returns the updated resource. */
   deactivate(id: string): Resource | null;
+  /** Atomically consume one unit; null if not found or already at zero. */
+  decrementRemaining(id: string): Resource | null;
   delete(id: string): boolean;
 }

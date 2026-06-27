@@ -43,6 +43,7 @@ export interface Resource {
   name: string;
   minLevel: MembershipLevel;
   maxQty: number;
+  remainingQty: number;
   active: boolean;
   createdAt: string;
 }
@@ -51,6 +52,7 @@ export interface NewResource {
   name: string;
   minLevel: MembershipLevel;
   maxQty: number;
+  remainingQty?: number; // defaults to maxQty (full) when omitted
 }
 
 export interface UsageLog {

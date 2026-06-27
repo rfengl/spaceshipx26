@@ -6,6 +6,7 @@ import { createAuthRouter } from './auth.js';
 import { createResourcesRouter } from './resources.js';
 import { createPassengersRouter } from './passengers.js';
 import { createCrewLeadsRouter } from './crewLeads.js';
+import { createMeRouter } from './me.js';
 
 export function createApiRouter(
   container: Container,
@@ -24,12 +25,14 @@ export function createApiRouter(
         '/api/resources',
         '/api/passengers',
         '/api/crew-leads',
+        '/api/me/resources',
       ],
     });
   });
 
   router.use('/health', healthRouter);
   router.use('/auth', createAuthRouter(container.authService, authenticate));
+  router.use('/me', createMeRouter(container.usageService, authenticate));
   router.use(
     '/resources',
     createResourcesRouter(container.resourceRepository, authenticate),

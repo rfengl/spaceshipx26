@@ -31,6 +31,7 @@ export interface Resource {
   name: string;
   minLevel: MembershipLevel;
   maxQty: number;
+  remainingQty: number;
   active: boolean;
   createdAt: string;
 }

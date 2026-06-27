@@ -16,6 +16,20 @@ export async function listResources(): Promise<Resource[]> {
   return (await apiFetch<Wrapped<Resource[]>>('/api/resources')).data;
 }
 
+/** Resources available to the current user (filtered by their membership tier). */
+export async function listMyResources(): Promise<Resource[]> {
+  return (await apiFetch<Wrapped<Resource[]>>('/api/me/resources')).data;
+}
+
+/** Use one unit of a resource; returns the updated resource. */
+export async function useResource(id: string): Promise<Resource> {
+  return (
+    await apiFetch<Wrapped<Resource>>(`/api/me/resources/${id}/use`, {
+      method: 'POST',
+    })
+  ).data;
+}
+
 export async function createResource(input: NewResource): Promise<Resource> {
   return (
     await apiFetch<Wrapped<Resource>>('/api/resources', {

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/Login/LoginPage';
 import Layout from './components/Layout/Layout';
 import Dashboard from './pages/Dashboard/Dashboard';
+import PassengerDashboard from './pages/PassengerDashboard/PassengerDashboard';
 import ResourcesPage from './pages/Resources/ResourcesPage';
 import PassengersPage from './pages/Passengers/PassengersPage';
 import CrewLeadsPage from './pages/CrewLeads/CrewLeadsPage';
@@ -11,6 +12,13 @@ import { useAuth } from './hooks/useAuth';
 import { loadStoredUser, logout, fetchMe } from './api/auth';
 import { getToken } from './api/client';
 import type { AuthUser } from './types';
+
+// Home is role-specific: crew leads get the admin dashboard, passengers get
+// their resource-discovery dashboard.
+function Home() {
+  const { user } = useAuth();
+  return user.role === 'CREW_LEAD' ? <Dashboard /> : <PassengerDashboard />;
+}
 
 // Route guard: only Crew Leads may reach admin pages; others go home.
 function RequireCrew({ children }: { children: ReactNode }) {
@@ -62,7 +70,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<Layout user={user} onLogout={handleLogout} />}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<Home />} />
           <Route
             path="resources"
             element={

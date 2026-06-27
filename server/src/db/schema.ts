@@ -16,12 +16,13 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS resources (
-  id          TEXT PRIMARY KEY,
-  name        TEXT NOT NULL,
-  min_level   TEXT NOT NULL CHECK (min_level IN ('SILVER','GOLD','PLATINUM')),
-  max_qty     INTEGER NOT NULL DEFAULT 1 CHECK (max_qty >= 1),
-  active      INTEGER NOT NULL DEFAULT 1,
-  created_at  TEXT NOT NULL
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  min_level     TEXT NOT NULL CHECK (min_level IN ('SILVER','GOLD','PLATINUM')),
+  max_qty       INTEGER NOT NULL DEFAULT 1 CHECK (max_qty >= 1),
+  remaining_qty INTEGER NOT NULL DEFAULT 1 CHECK (remaining_qty >= 0),
+  active        INTEGER NOT NULL DEFAULT 1,
+  created_at    TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS usage_logs (

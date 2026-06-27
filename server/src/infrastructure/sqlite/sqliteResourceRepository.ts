@@ -13,6 +13,7 @@ interface ResourceRow {
   name: string;
   min_level: MembershipLevel;
   max_qty: number;
+  remaining_qty: number;
   active: number;
   created_at: string;
 }
@@ -22,6 +23,7 @@ const toModel = (row: ResourceRow): Resource => ({
   name: row.name,
   minLevel: row.min_level,
   maxQty: row.max_qty,
+  remainingQty: row.remaining_qty,
   active: row.active === 1,
   createdAt: row.created_at,
 });
@@ -35,21 +37,30 @@ export class SqliteResourceRepository implements ResourceRepository {
       name: input.name,
       min_level: input.minLevel,
       max_qty: input.maxQty,
+      remaining_qty: input.remainingQty ?? input.maxQty,
       active: 1,
       created_at: new Date().toISOString(),
     };
     this.db
       .prepare(
-        'INSERT INTO resources (id, name, min_level, max_qty, active, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO resources (id, name, min_level, max_qty, remaining_qty, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
-      .run(row.id, row.name, row.min_level, row.max_qty, row.active, row.created_at);
+      .run(
+        row.id,
+        row.name,
+        row.min_level,
+        row.max_qty,
+        row.remaining_qty,
+        row.active,
+        row.created_at,
+      );
     return toModel(row);
   }
 
   findById(id: string): Resource | null {
-    const row = this.db
-      .prepare('SELECT * FROM resources WHERE id = ?')
-      .get(id) as ResourceRow | undefined;
+    const row = this.db.prepare('SELECT * FROM resources WHERE id = ?').get(id) as
+      | ResourceRow
+      | undefined;
     return row ? toModel(row) : null;
   }
 
@@ -85,6 +96,15 @@ export class SqliteResourceRepository implements ResourceRepository {
   deactivate(id: string): Resource | null {
     const changed = this.db
       .prepare('UPDATE resources SET active = 0 WHERE id = ?')
+      .run(id).changes;
+    return changed > 0 ? this.findById(id) : null;
+  }
+
+  decrementRemaining(id: string): Resource | null {
+    const changed = this.db
+      .prepare(
+        'UPDATE resources SET remaining_qty = remaining_qty - 1 WHERE id = ? AND remaining_qty > 0',
+      )
       .run(id).changes;
     return changed > 0 ? this.findById(id) : null;
   }

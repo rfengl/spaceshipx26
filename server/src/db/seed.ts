@@ -25,14 +25,16 @@ const PASSENGERS: { name: string; membershipLevel: MembershipLevel }[] = [
 ];
 
 // Base ship inventory, by minimum required tier (from the brief).
+// remainingQty is seeded with variety so the passenger dashboard shows a mix of
+// normal / low (yellow, < 1/2) / critical (red, < 1/3) stock levels.
 const RESOURCES: NewResource[] = [
-  { name: 'Food Supply Station', minLevel: 'SILVER', maxQty: 20 },
-  { name: 'Sleeping Pod', minLevel: 'SILVER', maxQty: 50 },
-  { name: 'Basic Hygiene Pod', minLevel: 'SILVER', maxQty: 30 },
-  { name: 'Private Cabin', minLevel: 'GOLD', maxQty: 10 },
-  { name: 'Advanced Medical Bay', minLevel: 'GOLD', maxQty: 5 },
-  { name: 'Luxury Oxygen Pod', minLevel: 'PLATINUM', maxQty: 8 },
-  { name: 'VIP Rec Deck', minLevel: 'PLATINUM', maxQty: 4 },
+  { name: 'Food Supply Station', minLevel: 'SILVER', maxQty: 20, remainingQty: 18 },
+  { name: 'Sleeping Pod', minLevel: 'SILVER', maxQty: 50, remainingQty: 20 },
+  { name: 'Basic Hygiene Pod', minLevel: 'SILVER', maxQty: 30, remainingQty: 8 },
+  { name: 'Private Cabin', minLevel: 'GOLD', maxQty: 10, remainingQty: 3 },
+  { name: 'Advanced Medical Bay', minLevel: 'GOLD', maxQty: 5, remainingQty: 4 },
+  { name: 'Luxury Oxygen Pod', minLevel: 'PLATINUM', maxQty: 8, remainingQty: 3 },
+  { name: 'VIP Rec Deck', minLevel: 'PLATINUM', maxQty: 4, remainingQty: 4 },
 ];
 
 /**
