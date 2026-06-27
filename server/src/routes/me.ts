@@ -6,6 +6,7 @@ import type { UsageService } from '../application/usageService.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import type { ResourcePublisher } from '../domain/ports/resourcePublisher.js';
+import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 import type { HttpError } from '../types.js';
 
 const httpError = (status: number, message: string): HttpError => {
@@ -54,6 +55,7 @@ export function createMeRouter(
   users: UserRepository,
   hasher: PasswordHasher,
   publisher: ResourcePublisher,
+  audit: AuditTrailRepository,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
@@ -122,6 +124,16 @@ export function createMeRouter(
       // Crew dashboards see the stock drop live.
       publisher.publish({ type: 'resource.updated', resource });
       res.json({ data: resource });
+    }),
+  );
+
+  // The current user's own activity history (newest first) — their personal
+  // resource-consumption log.
+  router.get(
+    '/history',
+    asyncHandler(async (req, res) => {
+      const entries = audit.findByUser(req.user!.id).reverse();
+      res.json({ data: entries });
     }),
   );
 

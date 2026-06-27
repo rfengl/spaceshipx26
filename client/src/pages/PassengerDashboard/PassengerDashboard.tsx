@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
@@ -88,7 +89,12 @@ export default function PassengerDashboard() {
 
   return (
     <section className="mt-6">
-      <h2 className="m-0 text-[1.15rem]">Available resources</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="m-0 text-[1.15rem]">Available resources</h2>
+        <Link to="/history" className="back-link">
+          My history →
+        </Link>
+      </div>
       <p className="muted mt-1 text-[0.9rem]">
         Facilities available to your membership tier. Each use consumes one unit.
       </p>

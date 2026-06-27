@@ -154,6 +154,51 @@ test('using a resource decrements remaining and records an audit log', async () 
     assert.equal(logs.length, 1);
     assert.equal(logs[0].type, 'USE');
     assert.equal(logs[0].resourceId, food.id);
+
+    // Personal history endpoint returns the passenger's own entry, enriched.
+    const history = (
+      await (
+        await fetch(`${base}/api/me/history`, { headers: bearer(nova.token) })
+      ).json()
+    ).data as { type: string; resourceName: string; userName: string }[];
+    assert.equal(history.length, 1);
+    assert.equal(history[0].type, 'USE');
+    assert.equal(history[0].resourceName, 'Food Supply Station');
+    assert.equal(history[0].userName, 'Nova Reyes');
+  });
+});
+
+test('personal history is scoped to the requesting user only', async () => {
+  const db = createDatabase(':memory:');
+  migrate(db);
+  const container = buildContainer(db);
+  await seedDatabase(db, container.passwordHasher);
+  const app = createApp(container);
+
+  await withServer(app, async (base) => {
+    const nova = await loginUser(base, 'nova.reyes'); // SILVER
+    const list = (
+      await (
+        await fetch(`${base}/api/me/resources`, { headers: bearer(nova.token) })
+      ).json()
+    ).data as { id: string; name: string }[];
+    const food = list.find((r) => r.name === 'Food Supply Station')!;
+    await fetch(`${base}/api/me/resources/${food.id}/use`, {
+      method: 'POST',
+      headers: bearer(nova.token),
+    });
+
+    // Milo has no usage; his history is empty even though the trail isn't.
+    const milo = await loginUser(base, 'milo.chen');
+    const miloHistory = (
+      await (
+        await fetch(`${base}/api/me/history`, { headers: bearer(milo.token) })
+      ).json()
+    ).data as unknown[];
+    assert.equal(miloHistory.length, 0);
+
+    // History requires authentication.
+    assert.equal((await fetch(`${base}/api/me/history`)).status, 401);
   });
 });
 

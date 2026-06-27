@@ -9,6 +9,7 @@ import ResourcesPage from './pages/Resources/ResourcesPage';
 import PassengersPage from './pages/Passengers/PassengersPage';
 import CrewLeadsPage from './pages/CrewLeads/CrewLeadsPage';
 import AuditTrailPage from './pages/AuditTrail/AuditTrailPage';
+import PersonalHistoryPage from './pages/PersonalHistory/PersonalHistoryPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import { useAuth } from './hooks/useAuth';
 import { loadStoredUser, logout, fetchMe } from './api/auth';
@@ -110,6 +111,7 @@ export default function App() {
               </RequireCrew>
             }
           />
+          <Route path="history" element={<PersonalHistoryPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

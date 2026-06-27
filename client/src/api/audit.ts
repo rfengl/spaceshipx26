@@ -23,3 +23,8 @@ export interface AuditEntry {
 export async function getAuditTrail(): Promise<AuditEntry[]> {
   return (await apiFetch<{ data: AuditEntry[] }>('/api/reports/audit')).data;
 }
+
+/** The current user's own activity history (newest first). */
+export async function getMyHistory(): Promise<AuditEntry[]> {
+  return (await apiFetch<{ data: AuditEntry[] }>('/api/me/history')).data;
+}

@@ -40,6 +40,7 @@ export function createApiRouter(
       container.userRepository,
       container.passwordHasher,
       container.resourceHub,
+      container.auditTrailRepository,
       authenticate,
     ),
   );
