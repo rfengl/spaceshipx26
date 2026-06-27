@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import PasswordInput from '../../components/PasswordInput';
@@ -81,10 +82,13 @@ export default function PassengersPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [query, setQuery] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortKey, setSortKey] = usePersistentState<SortKey>('passengers.sortKey', 'name');
+  const [sortDir, setSortDir] = usePersistentState<'asc' | 'desc'>(
+    'passengers.sortDir',
+    'asc',
+  );
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = usePersistentState('passengers.pageSize', 10);
 
   function onSort(key: SortKey) {
     if (key === sortKey) {

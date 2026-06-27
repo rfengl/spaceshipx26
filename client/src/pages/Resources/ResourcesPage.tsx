@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
+import { usePersistentState } from '../../hooks/usePersistentState';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
@@ -12,6 +13,7 @@ import {
   updateResource,
   refillResource,
   deleteResource,
+  getResourceDemand,
 } from '../../api/resources';
 import {
   TIER_RANK,
@@ -22,15 +24,23 @@ import {
 
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
 const emptyForm: NewResource = { name: '', minLevel: 'SILVER', maxQty: 1 };
-const PAGE_SIZE = 6;
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50];
 
-type SortKey = 'name' | 'minLevel' | 'remainingQty' | 'status';
+type SortKey =
+  | 'name'
+  | 'minLevel'
+  | 'remainingQty'
+  | 'status'
+  | 'highDemand'
+  | 'shortages';
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'name', label: 'Name' },
   { value: 'minLevel', label: 'Tier' },
   { value: 'remainingQty', label: 'Stock' },
   { value: 'status', label: 'Status' },
+  { value: 'highDemand', label: 'High demand' },
+  { value: 'shortages', label: 'Shortages' },
 ];
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
@@ -70,14 +80,26 @@ export default function ResourcesPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [query, setQuery] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortKey, setSortKey] = usePersistentState<SortKey>('resources.sortKey', 'name');
+  const [sortDir, setSortDir] = usePersistentState<'asc' | 'desc'>(
+    'resources.sortDir',
+    'asc',
+  );
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePersistentState('resources.pageSize', 10);
+  const [demand, setDemand] = useState<Record<string, number>>({});
 
-  // Any change to the search or sort returns to the first page.
+  // Usage counts per resource, for the "High demand" sort.
+  useEffect(() => {
+    getResourceDemand()
+      .then(setDemand)
+      .catch(() => setDemand({}));
+  }, []);
+
+  // Any change to the search, sort, or page size returns to the first page.
   useEffect(() => {
     setPage(1);
-  }, [query, sortKey, sortDir]);
+  }, [query, sortKey, sortDir, pageSize]);
 
   async function refresh() {
     setLoading(true);
@@ -202,6 +224,8 @@ export default function ResourcesPage() {
       )
     : resources;
 
+  const ratio = (r: Resource) => (r.maxQty > 0 ? r.remainingQty / r.maxQty : 0);
+
   const sorted = [...filtered].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     switch (sortKey) {
@@ -212,14 +236,20 @@ export default function ResourcesPage() {
       case 'status':
         // In-service first when ascending.
         return (Number(a.isDecommissioned) - Number(b.isDecommissioned)) * dir;
+      case 'highDemand':
+        // Most-used first when ascending.
+        return ((demand[b.id] ?? 0) - (demand[a.id] ?? 0)) * dir;
+      case 'shortages':
+        // Most-depleted (lowest stock ratio) first when ascending.
+        return (ratio(a) - ratio(b)) * dir;
       default:
         return a.name.localeCompare(b.name) * dir;
     }
   });
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const paged = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paged = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
     <>
@@ -343,12 +373,24 @@ export default function ResourcesPage() {
                     );
                   })}
                 </div>
-                <Pagination
-                  page={safePage}
-                  pageCount={pageCount}
-                  onPage={setPage}
-                  className="mt-4"
-                />
+
+                <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+                  <label className="flex items-center gap-2 text-[0.8rem] text-[#9fb3d8]">
+                    Rows per page
+                    <select
+                      className="input py-[0.4rem]"
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Pagination page={safePage} pageCount={pageCount} onPage={setPage} />
+                </div>
               </>
             )}
           </>

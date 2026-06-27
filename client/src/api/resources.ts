@@ -26,6 +26,16 @@ export async function getShortages(): Promise<Resource[]> {
   return (await apiFetch<Wrapped<Resource[]>>('/api/reports/shortages')).data;
 }
 
+/** Usage count per resource (resourceId → uses), for demand-based sorting. */
+export async function getResourceDemand(): Promise<Record<string, number>> {
+  const data = (
+    await apiFetch<Wrapped<{ resource: Resource; uses: number }[]>>(
+      '/api/reports/high-demand?limit=1000',
+    )
+  ).data;
+  return Object.fromEntries(data.map((d) => [d.resource.id, d.uses]));
+}
+
 /** Use one unit of a resource; returns the updated resource. */
 export async function useResource(id: string): Promise<Resource> {
   return (

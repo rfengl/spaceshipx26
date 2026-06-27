@@ -59,6 +59,21 @@ test('high-demand returns the top resources by usage (crew lead)', async () => {
   });
 });
 
+test('high-demand accepts a larger limit (for sorting the whole inventory)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const res = await fetch(`${base}/api/reports/high-demand?limit=1000`, {
+      headers: authJson(token),
+    });
+    assert.equal(res.status, 200);
+    const { data } = await res.json();
+    // Seed attributes usage to 5 distinct resources, all returned (no 10-cap).
+    assert.equal(data.length, 5);
+    assert.equal(data[0].resource.name, 'Sleeping Pod');
+  });
+});
+
 test('high-demand is crew-lead only (403) and requires auth (401)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {

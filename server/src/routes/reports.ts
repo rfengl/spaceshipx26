@@ -18,7 +18,9 @@ export function createReportsRouter(
   router.get(
     '/high-demand',
     asyncHandler(async (req, res) => {
-      const limit = Math.min(10, Math.max(1, Number(req.query.limit) || 3));
+      // Default to the top 3; allow a larger limit so the crew Resources page
+      // can pull demand counts for the whole inventory to sort by.
+      const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 3));
       res.json({ data: usage.highDemand(limit) });
     }),
   );
