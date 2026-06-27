@@ -2,17 +2,21 @@ import { Router, type RequestHandler } from 'express';
 
 import asyncHandler from '../utils/asyncHandler.js';
 import { requireRole } from '../middleware/auth.js';
-import { isMembershipLevel } from '../domain/membership.js';
-import type { NewPassenger } from '../domain/models.js';
-import type {
-  PassengerRepository,
-  PassengerUpdate,
-} from '../domain/ports/passengerRepository.js';
+import { isMembershipLevel, type MembershipLevel } from '../domain/membership.js';
+import { toPublicUser, type UserUpdate } from '../domain/models.js';
+import type { UserRepository } from '../domain/ports/userRepository.js';
+import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import type { HttpError } from '../types.js';
 
 const badRequest = (message: string): HttpError => {
   const err: HttpError = new Error(message);
   err.status = 400;
+  return err;
+};
+
+const conflict = (message: string): HttpError => {
+  const err: HttpError = new Error(message);
+  err.status = 409;
   return err;
 };
 
@@ -22,20 +26,41 @@ const notFound = (): HttpError => {
   return err;
 };
 
-function validateNew(body: unknown): NewPassenger {
-  const { name, membershipLevel } = (body ?? {}) as Record<string, unknown>;
+interface NewPassengerInput {
+  username: string;
+  password: string;
+  name: string;
+  membershipLevel: MembershipLevel;
+}
+
+function validateNew(body: unknown): NewPassengerInput {
+  const { name, membershipLevel, username, password } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
   if (typeof name !== 'string' || !name.trim()) {
     throw badRequest('`name` is required');
   }
   if (!isMembershipLevel(membershipLevel)) {
     throw badRequest('`membershipLevel` must be SILVER, GOLD, or PLATINUM');
   }
-  return { name: name.trim(), membershipLevel };
+  if (typeof username !== 'string' || !username.trim()) {
+    throw badRequest('`username` is required');
+  }
+  if (typeof password !== 'string' || password.length < 4) {
+    throw badRequest('`password` must be at least 4 characters');
+  }
+  return {
+    name: name.trim(),
+    membershipLevel,
+    username: username.trim().toLowerCase(),
+    password,
+  };
 }
 
-function validateUpdate(body: unknown): PassengerUpdate {
+function validateUpdate(body: unknown): UserUpdate {
   const src = (body ?? {}) as Record<string, unknown>;
-  const changes: PassengerUpdate = {};
+  const changes: UserUpdate = {};
   if (src.name !== undefined) {
     if (typeof src.name !== 'string' || !src.name.trim()) {
       throw badRequest('`name` must be a non-empty string');
@@ -52,44 +77,61 @@ function validateUpdate(body: unknown): PassengerUpdate {
 }
 
 export function createPassengersRouter(
-  passengers: PassengerRepository,
+  users: UserRepository,
+  hasher: PasswordHasher,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
-  const crewOnly = requireRole('CREW_LEAD');
 
-  router.use(authenticate);
+  // Passenger management is strictly Crew Lead only.
+  router.use(authenticate, requireRole('CREW_LEAD'));
 
+  // Crew leads are excluded — this lists regular passengers only.
   router.get(
     '/',
     asyncHandler(async (_req, res) => {
-      res.json({ data: passengers.findAll() });
+      res.json({ data: users.findPassengers().map(toPublicUser) });
     }),
   );
 
   router.post(
     '/',
-    crewOnly,
     asyncHandler(async (req, res) => {
-      res.status(201).json({ data: passengers.create(validateNew(req.body)) });
+      const input = validateNew(req.body);
+      if (users.findByUsername(input.username)) {
+        throw conflict('That username is already taken');
+      }
+      const passwordHash = await hasher.hash(input.password);
+      const user = users.create({
+        username: input.username,
+        passwordHash,
+        name: input.name,
+        membershipLevel: input.membershipLevel,
+        isCrewLead: false,
+      });
+      res.status(201).json({ data: toPublicUser(user) });
     }),
   );
 
   router.put(
     '/:id',
-    crewOnly,
     asyncHandler(async (req, res) => {
-      const updated = passengers.update(req.params.id, validateUpdate(req.body));
-      if (!updated) throw notFound();
-      res.json({ data: updated });
+      const target = users.findById(req.params.id);
+      if (!target) throw notFound();
+      const updated = users.update(req.params.id, validateUpdate(req.body));
+      res.json({ data: toPublicUser(updated ?? target) });
     }),
   );
 
   router.delete(
     '/:id',
-    crewOnly,
     asyncHandler(async (req, res) => {
-      if (!passengers.delete(req.params.id)) throw notFound();
+      const target = users.findById(req.params.id);
+      if (!target) throw notFound();
+      if (target.isCrewLead) {
+        throw badRequest('Cannot delete a crew lead here — use the Crew Leads page');
+      }
+      users.delete(req.params.id);
       res.status(204).end();
     }),
   );

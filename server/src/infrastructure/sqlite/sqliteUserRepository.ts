@@ -1,27 +1,30 @@
 import { randomUUID } from 'node:crypto';
 
 import type { DB } from '../../db/connection.js';
+import type { MembershipLevel } from '../../domain/membership.js';
 import type { UserRepository } from '../../domain/ports/userRepository.js';
-import type { NewUser, Role, User } from '../../domain/models.js';
+import type { NewUser, User, UserUpdate } from '../../domain/models.js';
 
 interface UserRow {
   id: string;
   username: string;
   password_hash: string;
-  role: Role;
-  passenger_id: string | null;
-  crew_lead_id: string | null;
+  name: string;
+  membership_level: MembershipLevel;
+  is_crew_lead: number;
   created_at: string;
+  updated_at: string | null;
 }
 
 const toModel = (row: UserRow): User => ({
   id: row.id,
   username: row.username,
   passwordHash: row.password_hash,
-  role: row.role,
+  name: row.name,
+  membershipLevel: row.membership_level,
+  isCrewLead: row.is_crew_lead === 1,
   createdAt: row.created_at,
-  ...(row.passenger_id ? { passengerId: row.passenger_id } : {}),
-  ...(row.crew_lead_id ? { crewLeadId: row.crew_lead_id } : {}),
+  ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
 });
 
 export class SqliteUserRepository implements UserRepository {
@@ -32,26 +35,34 @@ export class SqliteUserRepository implements UserRepository {
       id: randomUUID(),
       username: input.username,
       password_hash: input.passwordHash,
-      role: input.role,
-      passenger_id: input.passengerId ?? null,
-      crew_lead_id: input.crewLeadId ?? null,
+      name: input.name,
+      membership_level: input.membershipLevel,
+      is_crew_lead: input.isCrewLead ? 1 : 0,
       created_at: new Date().toISOString(),
+      updated_at: null,
     };
     this.db
       .prepare(
-        `INSERT INTO users (id, username, password_hash, role, passenger_id, crew_lead_id, created_at)
+        `INSERT INTO users (id, username, password_hash, name, membership_level, is_crew_lead, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
         row.username,
         row.password_hash,
-        row.role,
-        row.passenger_id,
-        row.crew_lead_id,
+        row.name,
+        row.membership_level,
+        row.is_crew_lead,
         row.created_at,
       );
     return toModel(row);
+  }
+
+  findById(id: string): User | null {
+    const row = this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as
+      | UserRow
+      | undefined;
+    return row ? toModel(row) : null;
   }
 
   findByUsername(username: string): User | null {
@@ -61,10 +72,48 @@ export class SqliteUserRepository implements UserRepository {
     return row ? toModel(row) : null;
   }
 
-  findById(id: string): User | null {
-    const row = this.db
-      .prepare('SELECT * FROM users WHERE id = ?')
-      .get(id) as UserRow | undefined;
-    return row ? toModel(row) : null;
+  findPassengers(): User[] {
+    const rows = this.db
+      .prepare('SELECT * FROM users WHERE is_crew_lead = 0 ORDER BY created_at')
+      .all() as UserRow[];
+    return rows.map(toModel);
+  }
+
+  findCrewLeads(): User[] {
+    const rows = this.db
+      .prepare('SELECT * FROM users WHERE is_crew_lead = 1 ORDER BY created_at')
+      .all() as UserRow[];
+    return rows.map(toModel);
+  }
+
+  countCrewLeads(): number {
+    const { n } = this.db
+      .prepare('SELECT COUNT(*) AS n FROM users WHERE is_crew_lead = 1')
+      .get() as { n: number };
+    return n;
+  }
+
+  update(id: string, changes: UserUpdate): User | null {
+    const existing = this.findById(id);
+    if (!existing) return null;
+    const name = changes.name ?? existing.name;
+    const membershipLevel = changes.membershipLevel ?? existing.membershipLevel;
+    this.db
+      .prepare(
+        'UPDATE users SET name = ?, membership_level = ?, updated_at = ? WHERE id = ?',
+      )
+      .run(name, membershipLevel, new Date().toISOString(), id);
+    return this.findById(id);
+  }
+
+  setCrewLead(id: string, isCrewLead: boolean): User | null {
+    const changed = this.db
+      .prepare('UPDATE users SET is_crew_lead = ?, updated_at = ? WHERE id = ?')
+      .run(isCrewLead ? 1 : 0, new Date().toISOString(), id).changes;
+    return changed > 0 ? this.findById(id) : null;
+  }
+
+  delete(id: string): boolean {
+    return this.db.prepare('DELETE FROM users WHERE id = ?').run(id).changes > 0;
   }
 }

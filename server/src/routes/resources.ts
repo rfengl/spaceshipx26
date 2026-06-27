@@ -40,15 +40,18 @@ function validateUpdate(body: unknown): ResourceUpdate {
   const src = (body ?? {}) as Record<string, unknown>;
   const changes: ResourceUpdate = {};
   if (src.name !== undefined) {
-    if (typeof src.name !== 'string' || !src.name.trim()) throw badRequest('`name` must be a non-empty string');
+    if (typeof src.name !== 'string' || !src.name.trim())
+      throw badRequest('`name` must be a non-empty string');
     changes.name = src.name.trim();
   }
   if (src.minLevel !== undefined) {
-    if (!isMembershipLevel(src.minLevel)) throw badRequest('`minLevel` must be SILVER, GOLD, or PLATINUM');
+    if (!isMembershipLevel(src.minLevel))
+      throw badRequest('`minLevel` must be SILVER, GOLD, or PLATINUM');
     changes.minLevel = src.minLevel;
   }
   if (src.maxQty !== undefined) {
-    if (!Number.isInteger(src.maxQty) || (src.maxQty as number) < 1) throw badRequest('`maxQty` must be a positive integer');
+    if (!Number.isInteger(src.maxQty) || (src.maxQty as number) < 1)
+      throw badRequest('`maxQty` must be a positive integer');
     changes.maxQty = src.maxQty as number;
   }
   if (src.active !== undefined) {
@@ -63,10 +66,9 @@ export function createResourcesRouter(
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
-  const crewOnly = requireRole('CREW_LEAD');
 
-  // Every resource route requires a valid token; mutations require a Crew Lead.
-  router.use(authenticate);
+  // Resource management is strictly Crew Lead only.
+  router.use(authenticate, requireRole('CREW_LEAD'));
 
   router.get(
     '/',
@@ -77,7 +79,6 @@ export function createResourcesRouter(
 
   router.post(
     '/',
-    crewOnly,
     asyncHandler(async (req, res) => {
       res.status(201).json({ data: resources.create(validateNew(req.body)) });
     }),
@@ -85,7 +86,6 @@ export function createResourcesRouter(
 
   router.put(
     '/:id',
-    crewOnly,
     asyncHandler(async (req, res) => {
       const updated = resources.update(req.params.id, validateUpdate(req.body));
       if (!updated) throw notFound();
@@ -95,7 +95,6 @@ export function createResourcesRouter(
 
   router.delete(
     '/:id',
-    crewOnly,
     asyncHandler(async (req, res) => {
       if (!resources.delete(req.params.id)) throw notFound();
       res.status(204).end();

@@ -2,18 +2,38 @@ import type { MembershipLevel } from './membership.js';
 
 export type Role = 'CREW_LEAD' | 'PASSENGER';
 
-export interface CrewLead {
+// A person aboard the ship. Crew leads are users with isCrewLead = true.
+export interface User {
   id: string;
-  name: string;
-  createdAt: string;
-}
-
-export interface Passenger {
-  id: string;
+  username: string;
+  passwordHash: string;
   name: string;
   membershipLevel: MembershipLevel;
+  isCrewLead: boolean;
   createdAt: string;
   updatedAt?: string;
+}
+
+// Safe shape returned to clients / used in lists (never exposes the hash).
+export type PublicUser = Omit<User, 'passwordHash'>;
+
+export const toPublicUser = (user: User): PublicUser => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash, ...rest } = user;
+  return rest;
+};
+
+export interface NewUser {
+  username: string;
+  passwordHash: string;
+  name: string;
+  membershipLevel: MembershipLevel;
+  isCrewLead?: boolean;
+}
+
+export interface UserUpdate {
+  name?: string;
+  membershipLevel?: MembershipLevel;
 }
 
 export interface Resource {
@@ -25,54 +45,43 @@ export interface Resource {
   createdAt: string;
 }
 
-export interface UsageLog {
-  id: string;
-  passengerId: string;
-  resourceId: string;
-  usedAt: string;
-}
-
-// Input shapes (no server-generated fields like id / timestamps).
-export interface NewCrewLead {
-  name: string;
-}
-
-export interface NewPassenger {
-  name: string;
-  membershipLevel: MembershipLevel;
-}
-
 export interface NewResource {
   name: string;
   minLevel: MembershipLevel;
   maxQty: number;
 }
 
-// --- Authentication ---
-
-export interface User {
+export interface UsageLog {
   id: string;
-  username: string;
-  passwordHash: string;
-  role: Role;
-  passengerId?: string;
-  crewLeadId?: string;
-  createdAt: string;
+  userId: string;
+  resourceId: string;
+  usedAt: string;
 }
 
-export interface NewUser {
-  username: string;
-  passwordHash: string;
-  role: Role;
-  passengerId?: string;
-  crewLeadId?: string;
-}
-
-// Safe identity carried in the JWT and returned to the client (never the hash).
+// Identity carried in the JWT. `role` is derived from isCrewLead at login.
 export interface AuthUser {
   id: string;
   username: string;
   role: Role;
-  passengerId?: string;
-  crewLeadId?: string;
+}
+
+// --- Crew-lead change requests (propose → approve swap) ---
+
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ChangeRequest {
+  id: string;
+  proposerId: string;
+  demoteId: string;
+  promoteId: string;
+  status: ChangeRequestStatus;
+  approverId?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface NewChangeRequest {
+  proposerId: string;
+  demoteId: string;
+  promoteId: string;
 }

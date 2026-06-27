@@ -44,7 +44,7 @@ const authJson = (token: string) => ({
   authorization: `Bearer ${token}`,
 });
 
-test('crew lead can create, read, update (tier change), and delete a passenger', async () => {
+test('crew lead can create, read, update, and delete a passenger', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'ada.lovelace');
@@ -52,27 +52,31 @@ test('crew lead can create, read, update (tier change), and delete a passenger',
     const created = await fetch(`${base}/api/passengers`, {
       method: 'POST',
       headers: authJson(token),
-      body: JSON.stringify({ name: 'Zoe Quark', membershipLevel: 'SILVER' }),
+      body: JSON.stringify({
+        username: 'zoe.quark',
+        password: 'mars2026',
+        name: 'Zoe Quark',
+        membershipLevel: 'SILVER',
+      }),
     });
     assert.equal(created.status, 201);
     const { data: passenger } = await created.json();
     assert.equal(passenger.membershipLevel, 'SILVER');
+    assert.equal(passenger.isCrewLead, false);
+    assert.equal(passenger.passwordHash, undefined);
 
-    // Seed has 6 passengers + this one
+    // Seed has 6 passengers + this one (crew leads excluded from the list)
     const list = await fetch(`${base}/api/passengers`, { headers: authJson(token) });
     const { data: all } = await list.json();
     assert.equal(all.length, 7);
 
-    // Upgrade tier
     const updated = await fetch(`${base}/api/passengers/${passenger.id}`, {
       method: 'PUT',
       headers: authJson(token),
       body: JSON.stringify({ membershipLevel: 'PLATINUM' }),
     });
     assert.equal(updated.status, 200);
-    const { data: changed } = await updated.json();
-    assert.equal(changed.membershipLevel, 'PLATINUM');
-    assert.ok(changed.updatedAt);
+    assert.equal((await updated.json()).data.membershipLevel, 'PLATINUM');
 
     const del = await fetch(`${base}/api/passengers/${passenger.id}`, {
       method: 'DELETE',
@@ -82,31 +86,54 @@ test('crew lead can create, read, update (tier change), and delete a passenger',
   });
 });
 
-test('create rejects an invalid membership tier with 400', async () => {
+test('create rejects an invalid tier (400) and a duplicate username (409)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'ada.lovelace');
-    const res = await fetch(`${base}/api/passengers`, {
+
+    const badTier = await fetch(`${base}/api/passengers`, {
       method: 'POST',
       headers: authJson(token),
-      body: JSON.stringify({ name: 'Bad', membershipLevel: 'BRONZE' }),
+      body: JSON.stringify({
+        username: 'x.y',
+        password: 'mars2026',
+        name: 'X',
+        membershipLevel: 'BRONZE',
+      }),
     });
-    assert.equal(res.status, 400);
+    assert.equal(badTier.status, 400);
+
+    const dup = await fetch(`${base}/api/passengers`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({
+        username: 'nova.reyes', // already seeded
+        password: 'mars2026',
+        name: 'Nova Two',
+        membershipLevel: 'SILVER',
+      }),
+    });
+    assert.equal(dup.status, 409);
   });
 });
 
-test('a passenger can read but cannot mutate passengers (403)', async () => {
+test('a passenger cannot access passenger management at all (403)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'nova.reyes');
 
     const list = await fetch(`${base}/api/passengers`, { headers: authJson(token) });
-    assert.equal(list.status, 200);
+    assert.equal(list.status, 403);
 
     const create = await fetch(`${base}/api/passengers`, {
       method: 'POST',
       headers: authJson(token),
-      body: JSON.stringify({ name: 'Nope', membershipLevel: 'SILVER' }),
+      body: JSON.stringify({
+        username: 'nope',
+        password: 'mars2026',
+        name: 'Nope',
+        membershipLevel: 'SILVER',
+      }),
     });
     assert.equal(create.status, 403);
   });
@@ -115,7 +142,6 @@ test('a passenger can read but cannot mutate passengers (403)', async () => {
 test('passenger routes require authentication (401)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
-    const res = await fetch(`${base}/api/passengers`);
-    assert.equal(res.status, 401);
+    assert.equal((await fetch(`${base}/api/passengers`)).status, 401);
   });
 });

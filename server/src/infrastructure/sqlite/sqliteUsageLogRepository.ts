@@ -9,14 +9,14 @@ import type { UsageLog } from '../../domain/models.js';
 
 interface UsageLogRow {
   id: string;
-  passenger_id: string;
+  user_id: string;
   resource_id: string;
   used_at: string;
 }
 
 const toModel = (row: UsageLogRow): UsageLog => ({
   id: row.id,
-  passengerId: row.passenger_id,
+  userId: row.user_id,
   resourceId: row.resource_id,
   usedAt: row.used_at,
 });
@@ -27,22 +27,22 @@ export class SqliteUsageLogRepository implements UsageLogRepository {
   record(input: RecordUsage): UsageLog {
     const row: UsageLogRow = {
       id: randomUUID(),
-      passenger_id: input.passengerId,
+      user_id: input.userId,
       resource_id: input.resourceId,
       used_at: new Date().toISOString(),
     };
     this.db
       .prepare(
-        'INSERT INTO usage_logs (id, passenger_id, resource_id, used_at) VALUES (?, ?, ?, ?)',
+        'INSERT INTO usage_logs (id, user_id, resource_id, used_at) VALUES (?, ?, ?, ?)',
       )
-      .run(row.id, row.passenger_id, row.resource_id, row.used_at);
+      .run(row.id, row.user_id, row.resource_id, row.used_at);
     return toModel(row);
   }
 
-  findByPassenger(passengerId: string): UsageLog[] {
+  findByUser(userId: string): UsageLog[] {
     const rows = this.db
-      .prepare('SELECT * FROM usage_logs WHERE passenger_id = ? ORDER BY used_at')
-      .all(passengerId) as UsageLogRow[];
+      .prepare('SELECT * FROM usage_logs WHERE user_id = ? ORDER BY used_at')
+      .all(userId) as UsageLogRow[];
     return rows.map(toModel);
   }
 

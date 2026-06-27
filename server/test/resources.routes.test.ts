@@ -8,7 +8,10 @@ import { seedDatabase, DEMO_PASSWORD } from '../src/db/seed.js';
 import { buildContainer } from '../src/container.js';
 import { createApp } from '../src/app.js';
 
-const withServer = async (app: Express, fn: (base: string) => Promise<void>): Promise<void> => {
+const withServer = async (
+  app: Express,
+  fn: (base: string) => Promise<void>,
+): Promise<void> => {
   const server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   const { port } = server.address() as AddressInfo;
@@ -96,13 +99,13 @@ test('create rejects an invalid membership tier with 400', async () => {
   });
 });
 
-test('a passenger can read but cannot mutate resources (403)', async () => {
+test('a passenger cannot access resources at all (403)', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'nova.reyes');
 
     const list = await fetch(`${base}/api/resources`, { headers: authJson(token) });
-    assert.equal(list.status, 200);
+    assert.equal(list.status, 403);
 
     const create = await fetch(`${base}/api/resources`, {
       method: 'POST',

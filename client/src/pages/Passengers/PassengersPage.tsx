@@ -13,10 +13,14 @@ import {
 import type { MembershipLevel, NewPassenger, Passenger } from '../../types';
 
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
-const emptyForm: NewPassenger = { name: '', membershipLevel: 'SILVER' };
+const emptyForm: NewPassenger = {
+  username: '',
+  password: '',
+  name: '',
+  membershipLevel: 'SILVER',
+};
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
-
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
 
 export default function PassengersPage() {
@@ -59,7 +63,12 @@ export default function PassengersPage() {
 
   function openEdit(passenger: Passenger) {
     setEditingId(passenger.id);
-    setForm({ name: passenger.name, membershipLevel: passenger.membershipLevel });
+    setForm({
+      username: passenger.username,
+      password: '',
+      name: passenger.name,
+      membershipLevel: passenger.membershipLevel,
+    });
     setFormOpen(true);
   }
 
@@ -76,7 +85,10 @@ export default function PassengersPage() {
     setError(null);
     try {
       if (editingId) {
-        await updatePassenger(editingId, form);
+        await updatePassenger(editingId, {
+          name: form.name,
+          membershipLevel: form.membershipLevel,
+        });
       } else {
         await createPassenger(form);
       }
@@ -137,6 +149,7 @@ export default function PassengersPage() {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Username</th>
                 <th>Membership tier</th>
                 {isCrew && <th aria-label="Actions" />}
               </tr>
@@ -145,6 +158,7 @@ export default function PassengersPage() {
               {passengers.map((p) => (
                 <tr key={p.id}>
                   <td data-label="Name">{p.name}</td>
+                  <td data-label="Username">{p.username}</td>
                   <td data-label="Membership tier">
                     <span className={`tier tier-${p.membershipLevel}`}>
                       {p.membershipLevel}
@@ -185,6 +199,34 @@ export default function PassengersPage() {
                 required
               />
             </label>
+
+            {!editingId && (
+              <>
+                <label className={fieldLabel}>
+                  Username
+                  <input
+                    type="text"
+                    className="input"
+                    value={form.username}
+                    placeholder="e.g. nova.reyes"
+                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                    required
+                  />
+                </label>
+                <label className={fieldLabel}>
+                  Password
+                  <input
+                    type="password"
+                    className="input"
+                    value={form.password}
+                    placeholder="at least 4 characters"
+                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    required
+                  />
+                </label>
+              </>
+            )}
+
             <label className={fieldLabel}>
               Membership tier
               <select
@@ -204,6 +246,7 @@ export default function PassengersPage() {
                 ))}
               </select>
             </label>
+
             <div className="mt-4 flex justify-end gap-2.5">
               <button type="button" className="btn-ghost" onClick={closeForm}>
                 Cancel

@@ -1,16 +1,23 @@
-# SpaceshipX26
+# Spaceship X26 — Passenger Resource Management System (PRMS)
 
-A full-stack app: a **React + TypeScript** frontend (a spaceship-cockpit login page
-and a missions dashboard) backed by a **Node.js + Express + TypeScript** JSON REST API.
+A full-stack app for the **Spaceship X26** mission (Earth → Mars): Crew Leads manage
+passengers and onboard resources, and passengers access the resources permitted by
+their membership tier.
 
-The frontend lives in [`client/`](client/) and builds into [`public/`](public/), which
-the backend in [`server/`](server/) serves as static files alongside the `/api` routes.
+- **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS — a spaceship-cockpit
+  login, then a dashboard with **Resources**, **Passengers**, and **Crew Leads** pages.
+- **Backend:** Node.js + Express 4 + TypeScript, **SQLite** (`better-sqlite3`) behind
+  repository interfaces, JWT auth with bcrypt-hashed passwords.
+
+The frontend in [`client/`](client/) builds into [`public/`](public/), which the
+backend in [`server/`](server/) serves as static files alongside the `/api` routes.
 
 ## Stack
 
-- **Frontend:** React 18, TypeScript, Vite
-- **Backend:** Node.js (ES modules, `>=20`), Express 4, TypeScript
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, React Router
+- **Backend:** Node.js (ESM, `>=20`), Express 4, TypeScript, better-sqlite3, jsonwebtoken, bcryptjs
 - **Security/ops:** helmet, cors, express-rate-limit, compression, morgan, dotenv
+- **Tooling:** Prettier + lint-staged + husky (format-on-commit)
 
 ## Prerequisites
 
@@ -18,163 +25,145 @@ the backend in [`server/`](server/) serves as static files alongside the `/api` 
 
 ## Setup
 
-From the repo root, install both workspaces and create the server env file:
-
 ```bash
 npm run install:all                 # installs server/ and client/ deps
 cp server/.env.example server/.env  # optional: adjust values if needed
 ```
 
-> `npm run install:all` runs `npm install` in both `server/` and `client/`.
-> You can also install them individually: `npm install --prefix server` and
-> `npm install --prefix client`.
-
 ## Run — development
 
-Start the backend and frontend together (hot-reload on both):
-
 ```bash
-npm run dev
+npm run dev          # backend (:3000) + frontend (:5173) together, hot-reload
 ```
 
-- **Frontend (Vite):** <http://localhost:5173> — open this during development.
-  API calls to `/api` are proxied to the backend automatically.
-- **Backend (Express):** <http://localhost:3000>
-
-Run them separately if you prefer:
-
-```bash
-npm run dev:server   # Express API only (tsx watch)
-npm run dev:client   # Vite dev server only
-```
+Open **<http://localhost:5173>** (Vite proxies `/api` to the backend). The database
+is created and **auto-seeded** on first run. Run them separately with
+`npm run dev:server` / `npm run dev:client`.
 
 ## Run — production
 
-Build the frontend (compiled into `public/`) and the backend (compiled to
-`server/dist/`), then start the server, which serves both the site and the API:
-
 ```bash
-npm run build        # builds client then server
+npm run build        # client -> public/, server -> server/dist/
 npm start            # serves the built app at http://localhost:3000
 ```
 
-Open <http://localhost:3000>.
+## Demo accounts
+
+The DB is seeded with **3 crew leads** and **6 passengers**; all share the demo
+password **`mars2026`**:
+
+| Username            | Role / Tier          |
+| ------------------- | -------------------- |
+| `ada.lovelace`      | Crew Lead            |
+| `grace.hopper`      | Crew Lead            |
+| `katherine.johnson` | Crew Lead            |
+| `nova.reyes`        | Passenger · Silver   |
+| `priya.anand`       | Passenger · Gold     |
+| `lena.park`         | Passenger · Platinum |
+
+(Plus `milo.chen` (Silver), `tomas.vega` (Gold), `idris.cole` (Platinum).)
 
 ## Project layout
 
 ```
-client/                # React + TypeScript frontend (Vite)
-  src/
-    LoginPage.tsx      # spaceship-cockpit login (landing page)
-    MissionControl.tsx # missions dashboard (after login)
-    App.tsx            # auth gate: LoginPage -> MissionControl
-    api.ts             # typed fetch client for /api/missions
-  public/favicon.svg   # rocket favicon (copied into build output)
-  vite.config.ts       # builds into ../public, proxies /api in dev
-
-server/                # Node + Express + TypeScript backend
-  src/
-    server.ts          # entry point: starts HTTP server, graceful shutdown
-    app.ts             # Express app: middleware + route wiring
-    config/index.ts    # environment-driven config (reads server/.env)
-    routes/            # route definitions (health, missions, index)
-    data/              # in-memory data store (swap for a real DB)
-    middleware/        # 404 + centralized error handler
-    utils/             # asyncHandler helper
-  test/                # node:test smoke tests (run via tsx)
-  .env.example         # copy to server/.env
-
-public/                # built frontend (generated by the client build)
-package.json           # root: orchestration scripts only
+client/src/
+  pages/            Login, Dashboard, Resources, Passengers, CrewLeads
+  components/       Layout, Modal/ConfirmDialog
+  api/              typed fetch client (auth, resources, passengers, crewLeads)
+  hooks/useAuth.ts  current user via router context
+server/src/
+  domain/           entities (models.ts) + ports (repository interfaces)
+  application/      AuthService, CrewLeadService (use-case logic)
+  infrastructure/   SQLite repositories + security adapters (bcrypt, JWT)
+  db/               schema, connection, migrate, seed
+  routes/           auth, resources, passengers, crew-leads, health
+  middleware/       auth (authenticate/requireRole), 404, error handler
+  container.ts      composition root (wires adapters into services)
+  test/             node:test suites (run via tsx)
+public/             built frontend (generated; do not edit by hand)
 ```
-
-> Note: `public/` is generated by the client build (Vite empties it on each
-> build), so don't edit files there by hand — change them in `client/`.
-
-## Available scripts (root)
-
-| Script                  | What it does                                  |
-| ----------------------- | --------------------------------------------- |
-| `npm run install:all`   | Install deps in `server/` and `client/`       |
-| `npm run dev`           | Run backend + frontend together (hot-reload)  |
-| `npm run dev:server`    | Run backend only                              |
-| `npm run dev:client`    | Run frontend only                             |
-| `npm run build`         | Build frontend then backend for production    |
-| `npm start`             | Serve the built app on port 3000              |
-| `npm test`              | Run backend smoke tests                       |
 
 ## API
 
-Base path: `/api`
+Base path `/api`. All non-auth routes require `Authorization: Bearer <token>`;
+mutations are **Crew Lead only**.
 
-| Method | Path                 | Description                                  |
-| ------ | -------------------- | -------------------------------------------- |
-| GET    | `/api`               | API info                                     |
-| GET    | `/api/health`        | Health/uptime check                          |
-| POST   | `/api/auth/login`    | Authenticate, returns `{ token, user }` (JWT)|
-| GET    | `/api/auth/me`       | Current user (requires `Bearer` token)       |
+| Method          | Path                                   | Who       | Description                         |
+| --------------- | -------------------------------------- | --------- | ----------------------------------- |
+| POST            | `/api/auth/login`                      | public    | Authenticate → `{ token, user }`    |
+| GET             | `/api/auth/me`                         | any       | Current user                        |
+| GET             | `/api/resources`                       | any       | List resources                      |
+| POST/PUT/DELETE | `/api/resources[/:id]`                 | crew lead | Create / update / delete resource   |
+| GET             | `/api/passengers`                      | any       | List passengers (crew leads hidden) |
+| POST/PUT/DELETE | `/api/passengers[/:id]`                | crew lead | Create / update / delete passenger  |
+| GET             | `/api/crew-leads`                      | any       | List the crew leads                 |
+| GET             | `/api/crew-leads/requests`             | crew lead | List swap change-requests           |
+| POST            | `/api/crew-leads/requests`             | crew lead | Propose a swap (demote + promote)   |
+| POST            | `/api/crew-leads/requests/:id/approve` | crew lead | Approve a pending swap              |
+| POST            | `/api/crew-leads/requests/:id/reject`  | crew lead | Reject a pending swap               |
 
-> PRMS endpoints (passengers, resources, usage, reports) are added as the
-> domain is built out across Levels 1–3.
+## Data model
 
-### Authentication
+A single **`users`** table represents everyone aboard — a **crew lead is a user
+with `is_crew_lead = 1`**, a passenger is `0`. This is the single source of truth
+for roles (the JWT role is derived from it at login). Other tables: `resources`,
+`usage_logs` (FK → users/resources), and `crew_lead_change_requests` (the swap
+workflow). Persistence sits behind `domain/ports` interfaces with SQLite adapters
+in `infrastructure/`, so the domain stays decoupled from storage.
 
-Local username/password auth: passwords are stored **bcrypt-hashed**, and a
-successful login returns a **JWT** carrying the user's role/tier. Send it as
-`Authorization: Bearer <token>` on protected requests.
+## Design decisions & scope (beyond the brief)
 
-All seeded accounts share the demo password **`mars2026`**:
+The brief defines three levels (basic passenger/resource management with tier-based
+access; dynamic validation, tier upgrades, audit logging; reporting). On top of the
+core requirements, a few **intentional extensions** were added — called out here so
+they read as deliberate engineering choices, not scope drift:
 
-| Username        | Role / Tier      |
-| --------------- | ---------------- |
-| `ada.lovelace`  | Crew Lead        |
-| `nova.reyes`    | Passenger · Silver   |
-| `priya.anand`   | Passenger · Gold     |
-| `lena.park`     | Passenger · Platinum |
+- **Authentication (JWT + bcrypt).** The brief describes two distinct actors
+  (Crew Leads vs Passengers) with different permissions, so a real auth boundary was
+  added: bcrypt-hashed passwords and a signed JWT whose role is derived from
+  `is_crew_lead`. `requireRole('CREW_LEAD')` gates all admin mutations.
 
-(Plus `grace.hopper`, `katherine.johnson` (crew leads) and `milo.chen`,
-`tomas.vega`, `idris.cole` (passengers).)
+- **Unified `users` model.** Crew leads and passengers are the same kind of entity
+  (a person aboard) distinguished by a flag, rather than separate tables — simpler,
+  with one source of truth for identity and role.
 
-### Example
+- **Crew-lead governance with approval (swap workflow).** The brief fixes the ship
+  at _exactly three_ Crew Leads but gives no mechanism to change them. Rather than
+  hard-coding three immutable admins, this adds a **controlled rotation** that
+  _preserves the "exactly three" invariant_: a crew lead **proposes** swapping a crew
+  lead out and a passenger in; the change stays **PENDING** until a **different** crew
+  lead **approves** it (separation of duties), at which point an atomic transaction
+  performs the 1-for-1 swap. This demonstrates a multi-actor approval state machine
+  while honoring the brief's core constraint.
 
-```bash
-curl http://localhost:3000/api/health
-
-# Log in and capture the token
-curl -X POST http://localhost:3000/api/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"username":"ada.lovelace","password":"mars2026"}'
-
-# Use it
-curl http://localhost:3000/api/auth/me -H 'authorization: Bearer <token>'
-```
+> **Authorization model.** The JWT authenticates **statelessly** (signature-verified
+> identity), but the **role is re-read from the database on every request**, so
+> authorization is always current: a just-demoted crew lead loses crew powers
+> immediately (not at token expiry), and a deleted account is rejected even with an
+> otherwise-valid token. This costs one indexed lookup per request — negligible on
+> local SQLite — in exchange for correct, live permissions, which is the right trade
+> for a governance feature.
 
 ## Tests
 
 ```bash
-npm test            # from the repo root (runs server/ tests)
-# or
-npm test --prefix server
+npm test             # runs the server test suite (node:test via tsx)
 ```
+
+Covers repositories, seeding, auth (role derivation), resource & passenger CRUD with
+role enforcement, and the crew-lead swap workflow (propose → approve keeps exactly 3,
+proposer cannot self-approve, passengers cannot propose).
 
 ## Configuration
 
-Backend config is read from `server/.env` (see `server/.env.example`). Key
-variables: `PORT`, `HOST`, `NODE_ENV`, `CORS_ORIGIN`, `RATE_LIMIT_WINDOW_MS`,
-`RATE_LIMIT_MAX`, `DB_PATH`, and `JWT_SECRET` / `JWT_EXPIRES_IN`.
+Backend config is read from `server/.env` (see `server/.env.example`): `PORT`,
+`HOST`, `NODE_ENV`, `CORS_ORIGIN`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`,
+`DB_PATH`, and `JWT_SECRET` / `JWT_EXPIRES_IN`.
 
 > **Set a strong `JWT_SECRET` in production** — the default is for local dev only.
 
-## Notes
+## AI usage disclosure
 
-This is the Spaceship X26 **Passenger Resource Management System (PRMS)** — Crew
-Leads manage passengers and resources; passengers discover and use resources
-permitted by their membership tier (Silver → Gold → Platinum). The domain is
-built out across Levels 1–3 (basic management, dynamic access/validation,
-reporting).
-
-Data is persisted in **SQLite** (via `better-sqlite3`) behind repository
-interfaces (`domain/ports`), with SQLite adapters under `infrastructure/`, so the
-domain logic stays decoupled from storage. Authentication is local
-username/password with **bcrypt** hashing and **JWT** tokens, wired through a
-composition root (`server/src/container.ts`) for testability.
+This solution was developed with AI assistance (Claude). All AI-generated code was
+directed, reviewed, and refined by the author; architectural decisions, scope calls,
+and the design tradeoffs above were made deliberately.

@@ -1,4 +1,4 @@
-import type { AuthUser, User } from '../domain/models.js';
+import type { AuthUser } from '../domain/models.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import type { TokenService } from '../domain/ports/tokenService.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
@@ -15,14 +15,6 @@ const invalidCredentials = (): HttpError => {
   return err;
 };
 
-const toAuthUser = (user: User): AuthUser => ({
-  id: user.id,
-  username: user.username,
-  role: user.role,
-  ...(user.passengerId ? { passengerId: user.passengerId } : {}),
-  ...(user.crewLeadId ? { crewLeadId: user.crewLeadId } : {}),
-});
-
 export class AuthService {
   constructor(
     private readonly users: UserRepository,
@@ -38,7 +30,12 @@ export class AuthService {
     if (!user || !ok) {
       throw invalidCredentials();
     }
-    const authUser = toAuthUser(user);
+
+    const authUser: AuthUser = {
+      id: user.id,
+      username: user.username,
+      role: user.isCrewLead ? 'CREW_LEAD' : 'PASSENGER',
+    };
     return { token: this.tokens.sign(authUser), user: authUser };
   }
 }

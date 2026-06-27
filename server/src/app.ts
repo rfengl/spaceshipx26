@@ -44,7 +44,10 @@ export function createApp(container: Container): Express {
     }),
   );
 
-  const authenticate = createAuthenticate(container.tokenService);
+  const authenticate = createAuthenticate(
+    container.tokenService,
+    container.userRepository,
+  );
   app.use('/api', createApiRouter(container, authenticate));
 
   // Serve the static website (built React app) from <repo-root>/public.

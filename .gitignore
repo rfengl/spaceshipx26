@@ -26,3 +26,6 @@ coverage/
 
 # Challenge brief (Everest copyright — not for republishing)
 /doc/
+
+# Playwright MCP browser-automation scratch/output (local tooling, not app code)
+.playwright-mcp/

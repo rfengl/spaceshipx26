@@ -7,8 +7,6 @@ interface JwtClaims {
   sub: string;
   username: string;
   role: Role;
-  passengerId?: string;
-  crewLeadId?: string;
 }
 
 export class JwtTokenService implements TokenService {
@@ -22,8 +20,6 @@ export class JwtTokenService implements TokenService {
       sub: user.id,
       username: user.username,
       role: user.role,
-      ...(user.passengerId ? { passengerId: user.passengerId } : {}),
-      ...(user.crewLeadId ? { crewLeadId: user.crewLeadId } : {}),
     };
     return jwt.sign(claims, this.secret, {
       expiresIn: this.expiresIn,
@@ -36,8 +32,6 @@ export class JwtTokenService implements TokenService {
       id: claims.sub,
       username: claims.username,
       role: claims.role,
-      ...(claims.passengerId ? { passengerId: claims.passengerId } : {}),
-      ...(claims.crewLeadId ? { crewLeadId: claims.crewLeadId } : {}),
     };
   }
 }

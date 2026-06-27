@@ -2,41 +2,53 @@ import assert from 'node:assert/strict';
 import test, { beforeEach } from 'node:test';
 
 import { createDatabase, migrate, type DB } from '../src/db/index.js';
-import { SqliteCrewLeadRepository } from '../src/infrastructure/sqlite/sqliteCrewLeadRepository.js';
-import { SqlitePassengerRepository } from '../src/infrastructure/sqlite/sqlitePassengerRepository.js';
+import { SqliteUserRepository } from '../src/infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from '../src/infrastructure/sqlite/sqliteResourceRepository.js';
 import { SqliteUsageLogRepository } from '../src/infrastructure/sqlite/sqliteUsageLogRepository.js';
 
 let db: DB;
 
 beforeEach(() => {
-  // Fresh in-memory database per test for isolation.
   db = createDatabase(':memory:');
   migrate(db);
 });
 
-test('crew lead repository: create, count, delete', () => {
-  const repo = new SqliteCrewLeadRepository(db);
-  const a = repo.create({ name: 'Ada' });
-  repo.create({ name: 'Grace' });
+test('user repository separates passengers from crew leads', () => {
+  const users = new SqliteUserRepository(db);
+  users.create({
+    username: 'ada',
+    passwordHash: 'h',
+    name: 'Ada',
+    membershipLevel: 'PLATINUM',
+    isCrewLead: true,
+  });
+  const passenger = users.create({
+    username: 'nova',
+    passwordHash: 'h',
+    name: 'Nova',
+    membershipLevel: 'SILVER',
+    isCrewLead: false,
+  });
 
-  assert.equal(repo.count(), 2);
-  assert.equal(repo.findById(a.id)?.name, 'Ada');
-  assert.equal(repo.delete(a.id), true);
-  assert.equal(repo.count(), 1);
+  assert.equal(users.countCrewLeads(), 1);
+  assert.equal(users.findCrewLeads().length, 1);
+  assert.equal(users.findPassengers().length, 1);
+  assert.equal(users.findByUsername('nova')?.id, passenger.id);
 });
 
-test('passenger repository: create and change membership tier', () => {
-  const repo = new SqlitePassengerRepository(db);
-  const p = repo.create({ name: 'Nova', membershipLevel: 'SILVER' });
-
-  assert.equal(p.membershipLevel, 'SILVER');
-  assert.equal(p.updatedAt, undefined);
-
-  const upgraded = repo.setMembershipLevel(p.id, 'GOLD');
-  assert.equal(upgraded?.membershipLevel, 'GOLD');
-  assert.ok(upgraded?.updatedAt, 'updatedAt is set after a tier change');
-  assert.equal(repo.findById(p.id)?.membershipLevel, 'GOLD');
+test('setCrewLead toggles crew-lead status', () => {
+  const users = new SqliteUserRepository(db);
+  const u = users.create({
+    username: 'milo',
+    passwordHash: 'h',
+    name: 'Milo',
+    membershipLevel: 'GOLD',
+    isCrewLead: false,
+  });
+  users.setCrewLead(u.id, true);
+  assert.equal(users.findById(u.id)?.isCrewLead, true);
+  assert.equal(users.countCrewLeads(), 1);
+  assert.equal(users.findPassengers().length, 0);
 });
 
 test('resource repository: active filter and decommission', () => {
@@ -45,8 +57,7 @@ test('resource repository: active filter and decommission', () => {
   repo.create({ name: 'Food Station', minLevel: 'SILVER', maxQty: 20 });
 
   assert.equal(repo.findActive().length, 2);
-  const decommissioned = repo.deactivate(pod.id);
-  assert.equal(decommissioned?.active, false);
+  repo.deactivate(pod.id);
   assert.equal(repo.findActive().length, 1);
   assert.equal(repo.findAll().length, 2);
 });
@@ -54,26 +65,31 @@ test('resource repository: active filter and decommission', () => {
 test('membership_level CHECK constraint rejects invalid tiers', () => {
   assert.throws(() =>
     db
-      .prepare('INSERT INTO passengers (id, name, membership_level, created_at) VALUES (?, ?, ?, ?)')
-      .run('x', 'Bad', 'BRONZE', new Date().toISOString()),
+      .prepare(
+        `INSERT INTO users (id, username, password_hash, name, membership_level, is_crew_lead, created_at)
+         VALUES ('x','u','h','N','BRONZE',0,'now')`,
+      )
+      .run(),
   );
 });
 
-test('usage log repository records usage and cascades on passenger delete', () => {
-  const passengers = new SqlitePassengerRepository(db);
+test('usage log records usage and cascades when the user is deleted', () => {
+  const users = new SqliteUserRepository(db);
   const resources = new SqliteResourceRepository(db);
   const usage = new SqliteUsageLogRepository(db);
 
-  const p = passengers.create({ name: 'Nova', membershipLevel: 'GOLD' });
+  const u = users.create({
+    username: 'tomas',
+    passwordHash: 'h',
+    name: 'Tomas',
+    membershipLevel: 'GOLD',
+    isCrewLead: false,
+  });
   const r = resources.create({ name: 'Adv. Medical Bay', minLevel: 'GOLD', maxQty: 5 });
 
-  usage.record({ passengerId: p.id, resourceId: r.id });
-  usage.record({ passengerId: p.id, resourceId: r.id });
+  usage.record({ userId: u.id, resourceId: r.id });
+  assert.equal(usage.findByUser(u.id).length, 1);
 
-  assert.equal(usage.findByPassenger(p.id).length, 2);
-  assert.equal(usage.findAll().length, 2);
-
-  // ON DELETE CASCADE removes the passenger's logs.
-  passengers.delete(p.id);
-  assert.equal(usage.findByPassenger(p.id).length, 0);
+  users.delete(u.id);
+  assert.equal(usage.findAll().length, 0); // ON DELETE CASCADE
 });

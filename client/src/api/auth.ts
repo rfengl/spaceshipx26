@@ -32,3 +32,13 @@ export function loadStoredUser(): AuthUser | null {
     return null;
   }
 }
+
+/**
+ * Re-fetch the current user from the server (role is derived live from the DB),
+ * so a refreshed page reflects a changed role (e.g. a demoted crew lead).
+ */
+export async function fetchMe(): Promise<AuthUser> {
+  const { user } = await apiFetch<{ user: AuthUser }>('/api/auth/me');
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  return user;
+}

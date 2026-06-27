@@ -1,10 +1,9 @@
 import type { DB } from './connection.js';
-import type { NewPassenger, NewResource } from '../domain/models.js';
+import type { MembershipLevel } from '../domain/membership.js';
+import type { NewResource } from '../domain/models.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
-import { SqliteCrewLeadRepository } from '../infrastructure/sqlite/sqliteCrewLeadRepository.js';
-import { SqlitePassengerRepository } from '../infrastructure/sqlite/sqlitePassengerRepository.js';
-import { SqliteResourceRepository } from '../infrastructure/sqlite/sqliteResourceRepository.js';
 import { SqliteUserRepository } from '../infrastructure/sqlite/sqliteUserRepository.js';
+import { SqliteResourceRepository } from '../infrastructure/sqlite/sqliteResourceRepository.js';
 
 // Every seeded account shares this demo password (hashed before storage).
 export const DEMO_PASSWORD = 'mars2026';
@@ -12,11 +11,11 @@ export const DEMO_PASSWORD = 'mars2026';
 // Login handle derived from a person's name, e.g. "Ada Lovelace" -> "ada.lovelace".
 const handle = (name: string): string => name.toLowerCase().replace(/\s+/g, '.');
 
-// Exactly three Crew Leads (the system's hard limit) ...
+// Exactly three crew leads (users with is_crew_lead = 1).
 const CREW_LEADS = ['Ada Lovelace', 'Grace Hopper', 'Katherine Johnson'];
 
-// ... six passengers, two per membership tier.
-const PASSENGERS: NewPassenger[] = [
+// Six passengers, two per membership tier.
+const PASSENGERS: { name: string; membershipLevel: MembershipLevel }[] = [
   { name: 'Nova Reyes', membershipLevel: 'SILVER' },
   { name: 'Milo Chen', membershipLevel: 'SILVER' },
   { name: 'Priya Anand', membershipLevel: 'GOLD' },
@@ -37,22 +36,20 @@ const RESOURCES: NewResource[] = [
 ];
 
 /**
- * Populates the database with starter data, including a login account per
- * crew lead and passenger (password hashed via the injected hasher).
- * Idempotent: does nothing if the crew leads have already been seeded.
+ * Populates the database with starter data: 3 crew leads + 6 passengers (all
+ * users) and the base resource inventory. Idempotent — does nothing if crew
+ * leads already exist, so it is safe to call on every startup.
  */
 export async function seedDatabase(
   db: DB,
   hasher: PasswordHasher,
 ): Promise<{ seeded: boolean }> {
-  const crewLeads = new SqliteCrewLeadRepository(db);
-  if (crewLeads.count() > 0) {
+  const users = new SqliteUserRepository(db);
+  if (users.countCrewLeads() > 0) {
     return { seeded: false };
   }
 
-  const passengers = new SqlitePassengerRepository(db);
   const resources = new SqliteResourceRepository(db);
-  const users = new SqliteUserRepository(db);
 
   // Hash once (all demo accounts share the same password) — bcrypt is async,
   // so this must happen before the synchronous better-sqlite3 transaction.
@@ -60,21 +57,21 @@ export async function seedDatabase(
 
   const insertAll = db.transaction(() => {
     for (const name of CREW_LEADS) {
-      const crewLead = crewLeads.create({ name });
       users.create({
         username: handle(name),
         passwordHash,
-        role: 'CREW_LEAD',
-        crewLeadId: crewLead.id,
+        name,
+        membershipLevel: 'PLATINUM',
+        isCrewLead: true,
       });
     }
     for (const passenger of PASSENGERS) {
-      const created = passengers.create(passenger);
       users.create({
         username: handle(passenger.name),
         passwordHash,
-        role: 'PASSENGER',
-        passengerId: created.id,
+        name: passenger.name,
+        membershipLevel: passenger.membershipLevel,
+        isCrewLead: false,
       });
     }
     for (const resource of RESOURCES) resources.create(resource);

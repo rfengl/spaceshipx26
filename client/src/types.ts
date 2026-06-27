@@ -4,11 +4,27 @@ export interface AuthUser {
   id: string;
   username: string;
   role: Role;
-  passengerId?: string;
-  crewLeadId?: string;
 }
 
 export type MembershipLevel = 'SILVER' | 'GOLD' | 'PLATINUM';
+
+// A person aboard the ship (passenger or crew lead).
+export interface Passenger {
+  id: string;
+  username: string;
+  name: string;
+  membershipLevel: MembershipLevel;
+  isCrewLead: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface NewPassenger {
+  username: string;
+  password: string;
+  name: string;
+  membershipLevel: MembershipLevel;
+}
 
 export interface Resource {
   id: string;
@@ -25,15 +41,15 @@ export interface NewResource {
   maxQty: number;
 }
 
-export interface Passenger {
-  id: string;
-  name: string;
-  membershipLevel: MembershipLevel;
-  createdAt: string;
-  updatedAt?: string;
-}
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
-export interface NewPassenger {
-  name: string;
-  membershipLevel: MembershipLevel;
+export interface ChangeRequest {
+  id: string;
+  proposerId: string;
+  demoteId: string;
+  promoteId: string;
+  status: ChangeRequestStatus;
+  approverId?: string;
+  createdAt: string;
+  resolvedAt?: string;
 }

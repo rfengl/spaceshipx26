@@ -1,4 +1,5 @@
 const TOKEN_KEY = 'prms_token';
+const USER_KEY = 'prms_user';
 
 export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token);
@@ -20,6 +21,14 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const res = await fetch(path, { ...options, headers });
 
   if (!res.ok) {
+    // An expired/invalid token on an authenticated request → clear the session
+    // and bounce back to the login page.
+    if (res.status === 401 && token) {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      window.location.reload();
+    }
+
     let message = `Request failed (${res.status})`;
     try {
       const body = await res.json();
