@@ -1,21 +1,28 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 
 import LoginPage from './pages/Login/LoginPage';
 import Layout from './components/Layout/Layout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import PassengerDashboard from './pages/PassengerDashboard/PassengerDashboard';
-import ResourcesPage from './pages/Resources/ResourcesPage';
-import PassengersPage from './pages/Passengers/PassengersPage';
-import CrewLeadsPage from './pages/CrewLeads/CrewLeadsPage';
-import AuditTrailPage from './pages/AuditTrail/AuditTrailPage';
-import AggregatedReportsPage from './pages/Reports/AggregatedReportsPage';
-import PersonalHistoryPage from './pages/PersonalHistory/PersonalHistoryPage';
-import ProfilePage from './pages/Profile/ProfilePage';
 import { useAuth } from './hooks/useAuth';
 import { loadStoredUser, logout, fetchMe, refreshToken } from './api/auth';
 import { getToken } from './api/client';
 import type { AuthUser } from './types';
+
+// Secondary pages are code-split: each is reached only by navigation, so it
+// loads on demand instead of bloating the first paint. A passenger never
+// downloads the crew-only admin pages, and vice-versa. The landing surfaces
+// (login + the two home dashboards above) stay eager so there's no flash there.
+const ResourcesPage = lazy(() => import('./pages/Resources/ResourcesPage'));
+const PassengersPage = lazy(() => import('./pages/Passengers/PassengersPage'));
+const CrewLeadsPage = lazy(() => import('./pages/CrewLeads/CrewLeadsPage'));
+const AuditTrailPage = lazy(() => import('./pages/AuditTrail/AuditTrailPage'));
+const AggregatedReportsPage = lazy(() => import('./pages/Reports/AggregatedReportsPage'));
+const PersonalHistoryPage = lazy(
+  () => import('./pages/PersonalHistory/PersonalHistoryPage'),
+);
+const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
 
 // While a session is active, swap the token for a fresh one well within its
 // 1-hour expiry so staying on the site keeps the user logged in.
@@ -28,10 +35,11 @@ function Home() {
   return user.role === 'CREW_LEAD' ? <Dashboard /> : <PassengerDashboard />;
 }
 
-// Route guard: only Crew Leads may reach admin pages; others go home.
-function RequireCrew({ children }: { children: ReactNode }) {
+// Guard layout route: only Crew Leads may reach the admin pages nested under it;
+// everyone else is redirected home.
+function RequireCrew() {
   const { user } = useAuth();
-  return user.role === 'CREW_LEAD' ? <>{children}</> : <Navigate to="/" replace />;
+  return user.role === 'CREW_LEAD' ? <Outlet /> : <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -105,39 +113,17 @@ export default function App() {
           }
         >
           <Route index element={<Home />} />
-          <Route
-            path="resources"
-            element={
-              <RequireCrew>
-                <ResourcesPage />
-              </RequireCrew>
-            }
-          />
-          <Route
-            path="passengers"
-            element={
-              <RequireCrew>
-                <PassengersPage />
-              </RequireCrew>
-            }
-          />
+
+          {/* Crew-only admin pages share a single guard. */}
+          <Route element={<RequireCrew />}>
+            <Route path="resources" element={<ResourcesPage />} />
+            <Route path="passengers" element={<PassengersPage />} />
+            <Route path="audit-trail" element={<AuditTrailPage />} />
+            <Route path="reports" element={<AggregatedReportsPage />} />
+          </Route>
+
+          {/* Open to any signed-in user. */}
           <Route path="crew-leads" element={<CrewLeadsPage />} />
-          <Route
-            path="audit-trail"
-            element={
-              <RequireCrew>
-                <AuditTrailPage />
-              </RequireCrew>
-            }
-          />
-          <Route
-            path="reports"
-            element={
-              <RequireCrew>
-                <AggregatedReportsPage />
-              </RequireCrew>
-            }
-          />
           <Route path="history" element={<PersonalHistoryPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

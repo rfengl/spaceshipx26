@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 
 import CountdownToMars from '../CountdownToMars';
@@ -45,7 +46,11 @@ export default function Layout({ user, onLogout, refreshUser }: Props) {
         </Link>
       </header>
 
-      <Outlet context={{ user, refreshUser } satisfies LayoutContext} />
+      {/* Only the page body suspends while a code-split page loads; the header
+          shell above stays mounted. */}
+      <Suspense fallback={<p className="muted mt-10 text-center">Loading…</p>}>
+        <Outlet context={{ user, refreshUser } satisfies LayoutContext} />
+      </Suspense>
     </div>
   );
 }
