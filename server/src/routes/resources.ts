@@ -9,6 +9,7 @@ import type {
   ResourceUpdate,
 } from '../domain/ports/resourceRepository.js';
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
+import type { ResourcePublisher } from '../domain/ports/resourcePublisher.js';
 import type { InventoryService } from '../application/inventoryService.js';
 import type { HttpError } from '../types.js';
 
@@ -68,6 +69,7 @@ export function createResourcesRouter(
   resources: ResourceRepository,
   inventory: InventoryService,
   audit: AuditTrailRepository,
+  publisher: ResourcePublisher,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
@@ -91,6 +93,7 @@ export function createResourcesRouter(
         resourceId: created.id,
         action: 'PROVISION',
       });
+      publisher.publish({ type: 'resource.updated', resource: created });
       res.status(201).json({ data: created });
     }),
   );
@@ -115,6 +118,7 @@ export function createResourcesRouter(
           action: changes.isDecommissioned ? 'DECOMMISSION' : 'RECOMMISSION',
         });
       }
+      publisher.publish({ type: 'resource.updated', resource: updated });
       res.json({ data: updated });
     }),
   );
@@ -129,6 +133,7 @@ export function createResourcesRouter(
         resourceId: req.params.id,
         action: 'DELETE',
       });
+      publisher.publish({ type: 'resource.removed', resourceId: req.params.id });
       res.status(204).end();
     }),
   );
@@ -142,6 +147,7 @@ export function createResourcesRouter(
         req.params.id,
         amount as number,
       );
+      publisher.publish({ type: 'resource.updated', resource });
       res.json({ data: resource });
     }),
   );

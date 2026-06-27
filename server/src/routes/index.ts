@@ -39,6 +39,7 @@ export function createApiRouter(
       container.usageService,
       container.userRepository,
       container.passwordHasher,
+      container.resourceHub,
       authenticate,
     ),
   );
@@ -48,6 +49,7 @@ export function createApiRouter(
       container.resourceRepository,
       container.inventoryService,
       container.auditTrailRepository,
+      container.resourceHub,
       authenticate,
     ),
   );

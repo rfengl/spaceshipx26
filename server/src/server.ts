@@ -9,7 +9,9 @@ const db = getDb();
 const container = buildContainer(db);
 const { seeded } = await seedDatabase(db, container.passwordHasher);
 if (seeded) {
-  console.log('Database seeded with starter crew leads, passengers, resources, and users.');
+  console.log(
+    'Database seeded with starter crew leads, passengers, resources, and users.',
+  );
 }
 
 const app = createApp(container);
@@ -20,9 +22,13 @@ const server = app.listen(config.port, config.host, () => {
   );
 });
 
+// Attach the WebSocket hub so resource changes stream to connected crew clients.
+container.resourceHub.attach(server);
+
 // Graceful shutdown.
 const shutdown = (signal: string): void => {
   console.log(`\n${signal} received. Closing server...`);
+  container.resourceHub.close();
   server.close(() => {
     console.log('Server closed. Bye.');
     process.exit(0);

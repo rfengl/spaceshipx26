@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useResourceSocket } from '../../hooks/useResourceSocket';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
@@ -54,6 +55,14 @@ function stockCard(remaining: number, max: number) {
   if (ratio < 1 / 3) return 'border-[rgba(255,99,99,0.5)] bg-[rgba(255,80,80,0.12)]';
   if (ratio < 0.5) return 'border-[rgba(255,200,80,0.5)] bg-[rgba(255,200,80,0.11)]';
   return 'border-white/[0.08] bg-white/[0.04]';
+}
+
+// The same shortage hint as a table-row background (no border).
+function stockRowBg(remaining: number, max: number) {
+  const ratio = max > 0 ? remaining / max : 0;
+  if (ratio < 1 / 3) return 'bg-[rgba(255,80,80,0.12)]';
+  if (ratio < 0.5) return 'bg-[rgba(255,200,80,0.1)]';
+  return '';
 }
 
 export default function ResourcesPage() {
@@ -133,6 +142,23 @@ export default function ResourcesPage() {
     }
   }, [focusId, resources]);
 
+  // Patch a single resource in place (add if new). Used by both our own
+  // mutations and live socket pushes, so the list is never fully refetched.
+  const applyResource = (r: Resource) =>
+    setResources((prev) =>
+      prev.some((x) => x.id === r.id)
+        ? prev.map((x) => (x.id === r.id ? r : x))
+        : [r, ...prev],
+    );
+  const removeResourceById = (id: string) =>
+    setResources((prev) => prev.filter((x) => x.id !== id));
+
+  // Live updates: another crew lead's change, or a passenger consuming stock.
+  useResourceSocket((change) => {
+    if (change.type === 'resource.updated') applyResource(change.resource);
+    else removeResourceById(change.resourceId);
+  });
+
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
@@ -162,12 +188,11 @@ export default function ResourcesPage() {
     setError(null);
     try {
       if (editingId) {
-        await updateResource(editingId, form);
+        applyResource(await updateResource(editingId, form));
       } else {
-        await createResource(form);
+        applyResource(await createResource(form));
       }
       closeForm();
-      await refresh();
     } catch (e) {
       setError(errMsg(e));
     } finally {
@@ -187,9 +212,8 @@ export default function ResourcesPage() {
     setRefillBusy(true);
     setError(null);
     try {
-      await refillResource(refilling.id, refillAmount);
+      applyResource(await refillResource(refilling.id, refillAmount));
       setRefilling(null);
-      await refresh();
     } catch (e) {
       setError(errMsg(e));
     } finally {
@@ -200,10 +224,11 @@ export default function ResourcesPage() {
   async function toggleDecommission(resource: Resource) {
     setError(null);
     try {
-      await updateResource(resource.id, {
-        isDecommissioned: !resource.isDecommissioned,
-      });
-      await refresh();
+      applyResource(
+        await updateResource(resource.id, {
+          isDecommissioned: !resource.isDecommissioned,
+        }),
+      );
     } catch (e) {
       setError(errMsg(e));
     }
@@ -348,7 +373,11 @@ export default function ResourcesPage() {
                           <tr
                             key={r.id}
                             ref={focused ? setFocusRef : undefined}
-                            className={focused ? 'bg-[rgba(90,208,255,0.1)]' : ''}
+                            className={
+                              focused
+                                ? 'bg-[rgba(90,208,255,0.1)]'
+                                : stockRowBg(r.remainingQty, r.maxQty)
+                            }
                           >
                             <td data-label="Name">{r.name}</td>
                             <td data-label="Min tier">

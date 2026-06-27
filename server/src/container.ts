@@ -13,6 +13,7 @@ import { SqliteUserRepository } from './infrastructure/sqlite/sqliteUserReposito
 import { SqliteResourceRepository } from './infrastructure/sqlite/sqliteResourceRepository.js';
 import { SqliteChangeRequestRepository } from './infrastructure/sqlite/sqliteChangeRequestRepository.js';
 import { SqliteAuditTrailRepository } from './infrastructure/sqlite/sqliteAuditTrailRepository.js';
+import { ResourceWebSocketHub } from './infrastructure/ws/resourceWebSocketHub.js';
 import { BcryptPasswordHasher } from './infrastructure/security/bcryptPasswordHasher.js';
 import { JwtTokenService } from './infrastructure/security/jwtTokenService.js';
 
@@ -31,6 +32,7 @@ export interface Container {
   userRepository: UserRepository;
   resourceRepository: ResourceRepository;
   auditTrailRepository: AuditTrailRepository;
+  resourceHub: ResourceWebSocketHub;
 }
 
 export function buildContainer(db: DB): Container {
@@ -41,6 +43,7 @@ export function buildContainer(db: DB): Container {
   const resourceRepository = new SqliteResourceRepository(db);
   const changeRequestRepository = new SqliteChangeRequestRepository(db);
   const auditTrailRepository = new SqliteAuditTrailRepository(db);
+  const resourceHub = new ResourceWebSocketHub(tokenService, userRepository);
 
   const authService = new AuthService(userRepository, passwordHasher, tokenService);
   const crewLeadService = new CrewLeadService(
@@ -70,5 +73,6 @@ export function buildContainer(db: DB): Container {
     userRepository,
     resourceRepository,
     auditTrailRepository,
+    resourceHub,
   };
 }

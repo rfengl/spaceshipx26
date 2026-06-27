@@ -5,6 +5,7 @@ import { toPublicUser, type UserUpdate } from '../domain/models.js';
 import type { UsageService } from '../application/usageService.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
+import type { ResourcePublisher } from '../domain/ports/resourcePublisher.js';
 import type { HttpError } from '../types.js';
 
 const httpError = (status: number, message: string): HttpError => {
@@ -52,6 +53,7 @@ export function createMeRouter(
   usage: UsageService,
   users: UserRepository,
   hasher: PasswordHasher,
+  publisher: ResourcePublisher,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
@@ -117,6 +119,8 @@ export function createMeRouter(
     '/resources/:id/use',
     asyncHandler(async (req, res) => {
       const { resource } = usage.use(req.user!.id, req.params.id);
+      // Crew dashboards see the stock drop live.
+      publisher.publish({ type: 'resource.updated', resource });
       res.json({ data: resource });
     }),
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
+import { useResourceSocket } from '../../hooks/useResourceSocket';
 import { listMyResources, useResource } from '../../api/resources';
 import type { Resource } from '../../types';
 
@@ -46,6 +47,21 @@ export default function PassengerDashboard() {
       .catch((e) => setError(errMsg(e)))
       .finally(() => setLoading(false));
   }, []);
+
+  // Live updates: the server only pushes resources this passenger's tier can
+  // access, so we can apply them directly (patch in place, add if new, remove
+  // on delete) without refetching the list.
+  useResourceSocket((change) => {
+    if (change.type === 'resource.removed') {
+      setResources((prev) => prev.filter((r) => r.id !== change.resourceId));
+      return;
+    }
+    setResources((prev) =>
+      prev.some((r) => r.id === change.resource.id)
+        ? prev.map((r) => (r.id === change.resource.id ? change.resource : r))
+        : [...prev, change.resource],
+    );
+  });
 
   async function doUse() {
     if (!pending) return;

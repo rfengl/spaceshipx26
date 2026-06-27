@@ -12,9 +12,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Proxy API calls to the Express backend during local development.
+    // Proxy API calls (and the resource WebSocket) to the Express backend
+    // during local development.
     proxy: {
       '/api': 'http://localhost:3000',
+      '/ws': { target: 'ws://localhost:3000', ws: true },
     },
   },
 });
