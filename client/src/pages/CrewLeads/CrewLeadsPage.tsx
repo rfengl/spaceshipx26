@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import ProposeSwapButton from './ProposeSwapButton';

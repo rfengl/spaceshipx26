@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import PaginationBar from '../../components/PaginationBar';
 import { getAuditPage, type AuditAction, type AuditEntry } from '../../api/audit';

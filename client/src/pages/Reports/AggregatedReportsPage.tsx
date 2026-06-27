@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { getAggregateReport, type TierSummary } from '../../api/reports';
 import BackDashboardButton from '../../components/BackDashboardButton';
