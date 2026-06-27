@@ -9,7 +9,7 @@ export interface ResourceChanges {
   name?: string;
   minLevel?: MembershipLevel;
   maxQty?: number;
-  active?: boolean;
+  isDecommissioned?: boolean;
 }
 
 export async function listResources(): Promise<Resource[]> {
@@ -66,6 +66,7 @@ export async function refillResource(id: string, amount: number): Promise<Resour
   ).data;
 }
 
+/** Soft-delete a resource (crew-lead): flags it inactive so it is hidden. */
 export async function deleteResource(id: string): Promise<void> {
   await apiFetch<void>(`/api/resources/${id}`, { method: 'DELETE' });
 }

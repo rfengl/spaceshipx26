@@ -41,8 +41,8 @@ export function createAuthenticate(
     }
 
     const user = users.findById(claims.id);
-    if (!user) {
-      // Token is valid but the account is gone.
+    if (!user || !user.active) {
+      // Token is valid but the account is gone or was soft-deleted.
       return next(unauthorized('Account no longer exists'));
     }
 

@@ -55,9 +55,10 @@ function validateUpdate(body: unknown): ResourceUpdate {
       throw badRequest('`maxQty` must be a positive integer');
     changes.maxQty = src.maxQty as number;
   }
-  if (src.active !== undefined) {
-    if (typeof src.active !== 'boolean') throw badRequest('`active` must be a boolean');
-    changes.active = src.active;
+  if (src.isDecommissioned !== undefined) {
+    if (typeof src.isDecommissioned !== 'boolean')
+      throw badRequest('`isDecommissioned` must be a boolean');
+    changes.isDecommissioned = src.isDecommissioned;
   }
   return changes;
 }
@@ -95,6 +96,15 @@ export function createResourcesRouter(
     }),
   );
 
+  // Soft delete: flag the resource inactive (hidden) rather than removing it.
+  router.delete(
+    '/:id',
+    asyncHandler(async (req, res) => {
+      if (!resources.deactivate(req.params.id)) throw notFound();
+      res.status(204).end();
+    }),
+  );
+
   router.post(
     '/:id/refill',
     asyncHandler(async (req, res) => {
@@ -105,14 +115,6 @@ export function createResourcesRouter(
         amount as number,
       );
       res.json({ data: resource });
-    }),
-  );
-
-  router.delete(
-    '/:id',
-    asyncHandler(async (req, res) => {
-      if (!resources.delete(req.params.id)) throw notFound();
-      res.status(204).end();
     }),
   );
 

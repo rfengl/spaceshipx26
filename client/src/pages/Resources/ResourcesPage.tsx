@@ -4,12 +4,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
+import SearchInput from '../../components/SearchInput';
 import {
   listResources,
   createResource,
   updateResource,
-  deleteResource,
   refillResource,
+  deleteResource,
 } from '../../api/resources';
 import type { MembershipLevel, NewResource, Resource } from '../../types';
 
@@ -51,6 +52,8 @@ export default function ResourcesPage() {
 
   const [deleting, setDeleting] = useState<Resource | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const [query, setQuery] = useState('');
 
   async function refresh() {
     setLoading(true);
@@ -139,10 +142,12 @@ export default function ResourcesPage() {
     }
   }
 
-  async function toggleActive(resource: Resource) {
+  async function toggleDecommission(resource: Resource) {
     setError(null);
     try {
-      await updateResource(resource.id, { active: !resource.active });
+      await updateResource(resource.id, {
+        isDecommissioned: !resource.isDecommissioned,
+      });
       await refresh();
     } catch (e) {
       setError(errMsg(e));
@@ -165,6 +170,13 @@ export default function ResourcesPage() {
   }
 
   const room = refilling ? refilling.maxQty - refilling.remainingQty : 0;
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? resources.filter(
+        (r) => r.name.toLowerCase().includes(q) || r.minLevel.toLowerCase().includes(q),
+      )
+    : resources;
 
   return (
     <>
@@ -189,63 +201,80 @@ export default function ResourcesPage() {
         ) : resources.length === 0 ? (
           <p className="muted mt-3">No resources yet.</p>
         ) : (
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {resources.map((r) => {
-              const full = r.remainingQty >= r.maxQty;
-              const focused = r.id === focusId;
-              return (
-                <div
-                  key={r.id}
-                  ref={focused ? focusRef : undefined}
-                  className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
-                    r.remainingQty,
-                    r.maxQty,
-                  )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''} ${
-                    r.active ? '' : 'opacity-60'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
-                    <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
-                  </div>
-                  <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
-                    <strong className="text-[1.05rem] text-[#e8eefc]">
-                      {r.remainingQty}
-                    </strong>{' '}
-                    / {r.maxQty} in stock
-                  </p>
-                  <p className="m-0 text-[0.8rem] text-[#9fb3d8]">
-                    {r.active ? 'Active' : 'Decommissioned'}
-                  </p>
+          <>
+            <div className="mt-3">
+              <SearchInput
+                value={query}
+                onChange={setQuery}
+                placeholder="Search by name or tier…"
+              />
+            </div>
 
-                  {isCrew && (
-                    <div className="row-actions mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2">
-                      <button
-                        className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={!r.active || full}
-                        title={full ? 'Already at maximum' : undefined}
-                        onClick={() => openRefill(r)}
-                      >
-                        Refill
-                      </button>
-                      <button className="link-btn" onClick={() => openEdit(r)}>
-                        Edit
-                      </button>
-                      <button className="link-btn" onClick={() => void toggleActive(r)}>
-                        {r.active ? 'Decommission' : 'Recommission'}
-                      </button>
-                      <button
-                        className="link-btn text-[#ff9d9d]"
-                        onClick={() => setDeleting(r)}
-                      >
-                        Delete
-                      </button>
+            {filtered.length === 0 ? (
+              <p className="muted mt-3">No resources match “{query}”.</p>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {filtered.map((r) => {
+                  const full = r.remainingQty >= r.maxQty;
+                  const focused = r.id === focusId;
+                  return (
+                    <div
+                      key={r.id}
+                      ref={focused ? focusRef : undefined}
+                      className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
+                        r.remainingQty,
+                        r.maxQty,
+                      )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''} ${
+                        r.isDecommissioned ? 'opacity-60' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
+                        <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
+                      </div>
+                      <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
+                        <strong className="text-[1.05rem] text-[#e8eefc]">
+                          {r.remainingQty}
+                        </strong>{' '}
+                        / {r.maxQty} in stock
+                      </p>
+                      <p className="m-0 text-[0.8rem] text-[#9fb3d8]">
+                        {r.isDecommissioned ? 'Decommissioned' : 'Active'}
+                      </p>
+
+                      {isCrew && (
+                        <div className="row-actions mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-2">
+                          <button
+                            className="link-btn disabled:cursor-not-allowed disabled:opacity-40"
+                            disabled={r.isDecommissioned || full}
+                            title={full ? 'Already at maximum' : undefined}
+                            onClick={() => openRefill(r)}
+                          >
+                            Refill
+                          </button>
+                          <button className="link-btn" onClick={() => openEdit(r)}>
+                            Edit
+                          </button>
+                          <button
+                            className="link-btn"
+                            onClick={() => void toggleDecommission(r)}
+                          >
+                            {r.isDecommissioned ? 'Recommission' : 'Decommission'}
+                          </button>
+                          <button
+                            className="link-btn text-[#ff9d9d]"
+                            onClick={() => setDeleting(r)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -353,8 +382,8 @@ export default function ResourcesPage() {
           title="Delete resource"
           message={
             <>
-              Delete <strong>{deleting.name}</strong>? This permanently removes it and
-              cannot be undone.
+              Delete <strong>{deleting.name}</strong>? It will be removed from inventory.
+              Its record and history are retained.
             </>
           }
           confirmLabel="Delete"

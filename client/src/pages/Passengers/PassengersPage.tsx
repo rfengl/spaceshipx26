@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import PasswordInput from '../../components/PasswordInput';
+import SearchInput from '../../components/SearchInput';
 import {
   listPassengers,
   createPassenger,
@@ -41,6 +42,8 @@ export default function PassengersPage() {
 
   const [deleting, setDeleting] = useState<Passenger | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const [query, setQuery] = useState('');
 
   async function refresh() {
     setLoading(true);
@@ -156,6 +159,16 @@ export default function PassengersPage() {
     }
   }
 
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? passengers.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.username.toLowerCase().includes(q) ||
+          p.membershipLevel.toLowerCase().includes(q),
+      )
+    : passengers;
+
   return (
     <>
       <Link to="/" className="back-link">
@@ -179,42 +192,56 @@ export default function PassengersPage() {
         ) : passengers.length === 0 ? (
           <p className="muted mt-3">No passengers yet.</p>
         ) : (
-          <table className="data-table mt-3">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Username</th>
-                <th>Membership tier</th>
-                {isCrew && <th aria-label="Actions" />}
-              </tr>
-            </thead>
-            <tbody>
-              {passengers.map((p) => (
-                <tr key={p.id}>
-                  <td data-label="Name">{p.name}</td>
-                  <td data-label="Username">{p.username}</td>
-                  <td data-label="Membership tier">
-                    <span className={`tier tier-${p.membershipLevel}`}>
-                      {p.membershipLevel}
-                    </span>
-                  </td>
-                  {isCrew && (
-                    <td className="row-actions">
-                      <button className="link-btn" onClick={() => openEdit(p)}>
-                        Edit
-                      </button>
-                      <button
-                        className="link-btn text-[#ff9d9d]"
-                        onClick={() => setDeleting(p)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <div className="mt-3">
+              <SearchInput
+                value={query}
+                onChange={setQuery}
+                placeholder="Search name, username, or tier…"
+              />
+            </div>
+
+            {filtered.length === 0 ? (
+              <p className="muted mt-3">No passengers match “{query}”.</p>
+            ) : (
+              <table className="data-table mt-3">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Membership tier</th>
+                    {isCrew && <th aria-label="Actions" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((p) => (
+                    <tr key={p.id}>
+                      <td data-label="Name">{p.name}</td>
+                      <td data-label="Username">{p.username}</td>
+                      <td data-label="Membership tier">
+                        <span className={`tier tier-${p.membershipLevel}`}>
+                          {p.membershipLevel}
+                        </span>
+                      </td>
+                      {isCrew && (
+                        <td className="row-actions">
+                          <button className="link-btn" onClick={() => openEdit(p)}>
+                            Edit
+                          </button>
+                          <button
+                            className="link-btn text-[#ff9d9d]"
+                            onClick={() => setDeleting(p)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </section>
 
@@ -306,8 +333,8 @@ export default function PassengersPage() {
           title="Delete passenger"
           message={
             <>
-              Delete <strong>{deleting.name}</strong>? This permanently removes the
-              passenger and cannot be undone.
+              Delete <strong>{deleting.name}</strong>? They will be removed from the
+              roster and can no longer log in. Their record and history are retained.
             </>
           }
           confirmLabel="Delete"

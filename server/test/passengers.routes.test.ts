@@ -83,6 +83,49 @@ test('crew lead can create, read, update, and delete a passenger', async () => {
       headers: authJson(token),
     });
     assert.equal(del.status, 204);
+
+    // Soft delete: the passenger drops off the roster but the row is preserved.
+    const after = await fetch(`${base}/api/passengers`, { headers: authJson(token) });
+    const { data: remaining } = await after.json();
+    assert.equal(remaining.length, 6);
+    assert.ok(!remaining.some((p: { id: string }) => p.id === passenger.id));
+
+    // A soft-deleted account can no longer log in.
+    const login = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'zoe.quark', password: 'mars2026' }),
+    });
+    assert.equal(login.status, 401);
+  });
+});
+
+test('a soft-deleted user is rejected by live authorization (existing token 401)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const crew = await tokenFor(base, 'ada.lovelace');
+
+    // Nova logs in and holds a still-valid token.
+    const novaLogin = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'nova.reyes', password: DEMO_PASSWORD }),
+    });
+    const { token: novaToken, user: nova } = await novaLogin.json();
+    assert.equal(
+      (await fetch(`${base}/api/me/profile`, { headers: authJson(novaToken) })).status,
+      200,
+    );
+
+    // Crew soft-deletes Nova; her existing token is rejected immediately.
+    await fetch(`${base}/api/passengers/${nova.id}`, {
+      method: 'DELETE',
+      headers: authJson(crew),
+    });
+    assert.equal(
+      (await fetch(`${base}/api/me/profile`, { headers: authJson(novaToken) })).status,
+      401,
+    );
   });
 });
 

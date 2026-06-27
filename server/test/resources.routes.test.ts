@@ -44,7 +44,7 @@ const authJson = (token: string) => ({
   authorization: `Bearer ${token}`,
 });
 
-test('crew lead can create, read, update, and delete a resource', async () => {
+test('crew lead can create, read, and update a resource', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'ada.lovelace');
@@ -59,7 +59,7 @@ test('crew lead can create, read, update, and delete a resource', async () => {
     const { data: resource } = await created.json();
     assert.equal(resource.minLevel, 'GOLD');
     assert.equal(resource.maxQty, 12);
-    assert.equal(resource.active, true);
+    assert.equal(resource.isDecommissioned, false);
 
     // Read (seed has 7 + this one)
     const list = await fetch(`${base}/api/resources`, { headers: authJson(token) });
@@ -70,19 +70,39 @@ test('crew lead can create, read, update, and delete a resource', async () => {
     const updated = await fetch(`${base}/api/resources/${resource.id}`, {
       method: 'PUT',
       headers: authJson(token),
-      body: JSON.stringify({ minLevel: 'PLATINUM', active: false }),
+      body: JSON.stringify({ minLevel: 'PLATINUM', isDecommissioned: true }),
     });
     assert.equal(updated.status, 200);
     const { data: changed } = await updated.json();
     assert.equal(changed.minLevel, 'PLATINUM');
-    assert.equal(changed.active, false);
+    assert.equal(changed.isDecommissioned, true); // decommission = soft delete
+  });
+});
 
-    // Delete
+test('deleting a resource is a soft delete: hidden from the list, row preserved', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+
+    const created = await fetch(`${base}/api/resources`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({ name: 'Scrap Bay', minLevel: 'SILVER', maxQty: 3 }),
+    });
+    const { data: resource } = await created.json();
+
     const del = await fetch(`${base}/api/resources/${resource.id}`, {
       method: 'DELETE',
       headers: authJson(token),
     });
     assert.equal(del.status, 204);
+
+    // Gone from the crew list (seed 7 remain), and a second delete now 404s
+    // because the row is filtered out — but it still exists in the database.
+    const list = await fetch(`${base}/api/resources`, { headers: authJson(token) });
+    const { data: all } = await list.json();
+    assert.equal(all.length, 7);
+    assert.ok(!all.some((r: { id: string }) => r.id === resource.id));
   });
 });
 

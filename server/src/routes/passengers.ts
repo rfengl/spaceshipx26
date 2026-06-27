@@ -171,7 +171,9 @@ export function createPassengersRouter(
       if (target.isCrewLead) {
         throw badRequest('Cannot delete a crew lead here — use the Crew Leads page');
       }
-      users.delete(req.params.id);
+      // Soft delete: deactivate rather than remove, preserving the passenger's
+      // usage history. They can no longer log in and drop off the roster.
+      users.deactivate(req.params.id);
       res.status(204).end();
     }),
   );

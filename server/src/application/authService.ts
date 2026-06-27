@@ -27,7 +27,8 @@ export class AuthService {
     // Always run a comparison-shaped path to avoid leaking which usernames
     // exist via timing, then fail uniformly.
     const ok = user ? await this.hasher.compare(password, user.passwordHash) : false;
-    if (!user || !ok) {
+    // A soft-deleted (inactive) account is treated as if it does not exist.
+    if (!user || !ok || !user.active) {
       throw invalidCredentials();
     }
 

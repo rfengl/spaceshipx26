@@ -10,6 +10,7 @@ export interface User {
   name: string;
   membershipLevel: MembershipLevel;
   isCrewLead: boolean;
+  active: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -44,7 +45,8 @@ export interface Resource {
   minLevel: MembershipLevel;
   maxQty: number;
   remainingQty: number;
-  active: boolean;
+  active: boolean; // soft-delete flag: false = deleted (hidden)
+  isDecommissioned: boolean; // operational flag: true = out of service (flagged)
   createdAt: string;
 }
 

@@ -15,6 +15,7 @@ interface ResourceRow {
   max_qty: number;
   remaining_qty: number;
   active: number;
+  is_decommissioned: number;
   created_at: string;
 }
 
@@ -25,6 +26,7 @@ const toModel = (row: ResourceRow): Resource => ({
   maxQty: row.max_qty,
   remainingQty: row.remaining_qty,
   active: row.active === 1,
+  isDecommissioned: row.is_decommissioned === 1,
   createdAt: row.created_at,
 });
 
@@ -39,11 +41,12 @@ export class SqliteResourceRepository implements ResourceRepository {
       max_qty: input.maxQty,
       remaining_qty: input.remainingQty ?? input.maxQty,
       active: 1,
+      is_decommissioned: 0,
       created_at: new Date().toISOString(),
     };
     this.db
       .prepare(
-        'INSERT INTO resources (id, name, min_level, max_qty, remaining_qty, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO resources (id, name, min_level, max_qty, remaining_qty, active, is_decommissioned, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
         row.id,
@@ -52,6 +55,7 @@ export class SqliteResourceRepository implements ResourceRepository {
         row.max_qty,
         row.remaining_qty,
         row.active,
+        row.is_decommissioned,
         row.created_at,
       );
     return toModel(row);
@@ -64,16 +68,20 @@ export class SqliteResourceRepository implements ResourceRepository {
     return row ? toModel(row) : null;
   }
 
+  // Non-deleted resources (active = 1), including decommissioned ones (flagged).
   findAll(): Resource[] {
     const rows = this.db
-      .prepare('SELECT * FROM resources ORDER BY created_at')
+      .prepare('SELECT * FROM resources WHERE active = 1 ORDER BY created_at')
       .all() as ResourceRow[];
     return rows.map(toModel);
   }
 
-  findActive(): Resource[] {
+  // Non-deleted and in service (usable): active = 1 and not decommissioned.
+  findInService(): Resource[] {
     const rows = this.db
-      .prepare('SELECT * FROM resources WHERE active = 1 ORDER BY created_at')
+      .prepare(
+        'SELECT * FROM resources WHERE active = 1 AND is_decommissioned = 0 ORDER BY created_at',
+      )
       .all() as ResourceRow[];
     return rows.map(toModel);
   }
@@ -84,15 +92,24 @@ export class SqliteResourceRepository implements ResourceRepository {
     const name = changes.name ?? existing.name;
     const minLevel = changes.minLevel ?? existing.minLevel;
     const maxQty = changes.maxQty ?? existing.maxQty;
-    const active = (changes.active ?? existing.active) ? 1 : 0;
+    const isDecommissioned =
+      (changes.isDecommissioned ?? existing.isDecommissioned) ? 1 : 0;
     this.db
       .prepare(
-        'UPDATE resources SET name = ?, min_level = ?, max_qty = ?, active = ? WHERE id = ?',
+        'UPDATE resources SET name = ?, min_level = ?, max_qty = ?, is_decommissioned = ? WHERE id = ?',
       )
-      .run(name, minLevel, maxQty, active, id);
+      .run(name, minLevel, maxQty, isDecommissioned, id);
     return this.findById(id);
   }
 
+  decommission(id: string): Resource | null {
+    const changed = this.db
+      .prepare('UPDATE resources SET is_decommissioned = 1 WHERE id = ?')
+      .run(id).changes;
+    return changed > 0 ? this.findById(id) : null;
+  }
+
+  // Soft delete: flag inactive instead of removing the row (history preserved).
   deactivate(id: string): Resource | null {
     const changed = this.db
       .prepare('UPDATE resources SET active = 0 WHERE id = ?')
@@ -116,9 +133,5 @@ export class SqliteResourceRepository implements ResourceRepository {
       )
       .run(amount, id, amount).changes;
     return changed > 0 ? this.findById(id) : null;
-  }
-
-  delete(id: string): boolean {
-    return this.db.prepare('DELETE FROM resources WHERE id = ?').run(id).changes > 0;
   }
 }

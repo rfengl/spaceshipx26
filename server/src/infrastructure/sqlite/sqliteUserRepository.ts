@@ -12,6 +12,7 @@ interface UserRow {
   name: string;
   membership_level: MembershipLevel;
   is_crew_lead: number;
+  active: number;
   created_at: string;
   updated_at: string | null;
 }
@@ -23,6 +24,7 @@ const toModel = (row: UserRow): User => ({
   name: row.name,
   membershipLevel: row.membership_level,
   isCrewLead: row.is_crew_lead === 1,
+  active: row.active === 1,
   createdAt: row.created_at,
   ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
 });
@@ -38,6 +40,7 @@ export class SqliteUserRepository implements UserRepository {
       name: input.name,
       membership_level: input.membershipLevel,
       is_crew_lead: input.isCrewLead ? 1 : 0,
+      active: 1,
       created_at: new Date().toISOString(),
       updated_at: null,
     };
@@ -74,21 +77,25 @@ export class SqliteUserRepository implements UserRepository {
 
   findPassengers(): User[] {
     const rows = this.db
-      .prepare('SELECT * FROM users WHERE is_crew_lead = 0 ORDER BY created_at')
+      .prepare(
+        'SELECT * FROM users WHERE is_crew_lead = 0 AND active = 1 ORDER BY created_at',
+      )
       .all() as UserRow[];
     return rows.map(toModel);
   }
 
   findCrewLeads(): User[] {
     const rows = this.db
-      .prepare('SELECT * FROM users WHERE is_crew_lead = 1 ORDER BY created_at')
+      .prepare(
+        'SELECT * FROM users WHERE is_crew_lead = 1 AND active = 1 ORDER BY created_at',
+      )
       .all() as UserRow[];
     return rows.map(toModel);
   }
 
   countCrewLeads(): number {
     const { n } = this.db
-      .prepare('SELECT COUNT(*) AS n FROM users WHERE is_crew_lead = 1')
+      .prepare('SELECT COUNT(*) AS n FROM users WHERE is_crew_lead = 1 AND active = 1')
       .get() as { n: number };
     return n;
   }
@@ -116,7 +123,12 @@ export class SqliteUserRepository implements UserRepository {
     return changed > 0 ? this.findById(id) : null;
   }
 
-  delete(id: string): boolean {
-    return this.db.prepare('DELETE FROM users WHERE id = ?').run(id).changes > 0;
+  // Soft delete: flag the account inactive instead of removing the row, so its
+  // history (e.g. usage logs) is preserved. The account can no longer log in.
+  deactivate(id: string): User | null {
+    const changed = this.db
+      .prepare('UPDATE users SET active = 0, updated_at = ? WHERE id = ?')
+      .run(new Date().toISOString(), id).changes;
+    return changed > 0 ? this.findById(id) : null;
   }
 }

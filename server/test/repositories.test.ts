@@ -53,15 +53,26 @@ test('setCrewLead toggles crew-lead status', () => {
   assert.equal(users.findPassengers().length, 0);
 });
 
-test('resource repository: active filter and decommission', () => {
+test('resource repository: decommission (flagged, visible) vs soft delete (hidden)', () => {
   const repo = new SqliteResourceRepository(db);
   const pod = repo.create({ name: 'Luxury O2 Pod', minLevel: 'PLATINUM', maxQty: 8 });
-  repo.create({ name: 'Food Station', minLevel: 'SILVER', maxQty: 20 });
+  const food = repo.create({ name: 'Food Station', minLevel: 'SILVER', maxQty: 20 });
 
-  assert.equal(repo.findActive().length, 2);
-  repo.deactivate(pod.id);
-  assert.equal(repo.findActive().length, 1);
+  assert.equal(repo.findInService().length, 2);
+
+  // Decommission: out of service but still listed (active = 1, flagged).
+  const decommissioned = repo.decommission(pod.id);
+  assert.equal(decommissioned?.isDecommissioned, true);
+  assert.equal(decommissioned?.active, true);
+  assert.equal(repo.findInService().length, 1);
   assert.equal(repo.findAll().length, 2);
+
+  // Soft delete: hidden from both lists, but the row is preserved.
+  const deleted = repo.deactivate(food.id);
+  assert.equal(deleted?.active, false);
+  assert.equal(repo.findAll().length, 1);
+  assert.equal(repo.findInService().length, 0);
+  assert.equal(repo.findById(food.id)?.active, false); // row still there
 });
 
 test('membership_level CHECK constraint rejects invalid tiers', () => {
@@ -123,7 +134,7 @@ test('inventory service refills and writes an audit log', () => {
   assert.equal(refillLogs.findByResource(cabin.id).length, 1);
 });
 
-test('usage log records usage and cascades when the user is deleted', () => {
+test('soft-deleting a user preserves history and drops them from the roster', () => {
   const users = new SqliteUserRepository(db);
   const resources = new SqliteResourceRepository(db);
   const usage = new SqliteUsageLogRepository(db);
@@ -139,7 +150,13 @@ test('usage log records usage and cascades when the user is deleted', () => {
 
   usage.record({ userId: u.id, resourceId: r.id });
   assert.equal(usage.findByUser(u.id).length, 1);
+  assert.equal(users.findPassengers().length, 1);
 
-  users.delete(u.id);
-  assert.equal(usage.findAll().length, 0); // ON DELETE CASCADE
+  const deactivated = users.deactivate(u.id);
+  assert.equal(deactivated?.active, false);
+  // Row (and its usage history) is preserved — no hard delete, no cascade.
+  assert.equal(usage.findAll().length, 1);
+  assert.equal(users.findById(u.id)?.active, false);
+  // ...but they no longer appear on the active roster.
+  assert.equal(users.findPassengers().length, 0);
 });

@@ -33,8 +33,8 @@ export class InventoryService {
     }
 
     const resource = this.resources.findById(resourceId);
-    if (!resource) throw httpError(404, 'Resource not found');
-    if (!resource.active) {
+    if (!resource || !resource.active) throw httpError(404, 'Resource not found');
+    if (resource.isDecommissioned) {
       throw httpError(409, 'This resource is decommissioned and cannot be refilled');
     }
     if (resource.remainingQty + amount > resource.maxQty) {

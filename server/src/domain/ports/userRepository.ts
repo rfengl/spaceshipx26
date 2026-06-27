@@ -12,5 +12,6 @@ export interface UserRepository {
   update(id: string, changes: UserUpdate): User | null;
   /** Toggle crew-lead status (used by the swap workflow). */
   setCrewLead(id: string, isCrewLead: boolean): User | null;
-  delete(id: string): boolean;
+  /** Soft delete: flag the account inactive (rows are never hard-deleted). */
+  deactivate(id: string): User | null;
 }

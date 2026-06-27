@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
   name              TEXT NOT NULL,
   membership_level  TEXT NOT NULL CHECK (membership_level IN ('SILVER','GOLD','PLATINUM')),
   is_crew_lead      INTEGER NOT NULL DEFAULT 0,
+  -- Soft-delete flag: deleting a passenger sets this to 0; rows are never removed.
+  active            INTEGER NOT NULL DEFAULT 1,
   created_at        TEXT NOT NULL,
   updated_at        TEXT
 );
@@ -18,11 +20,15 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS resources (
   id            TEXT PRIMARY KEY,
   name          TEXT NOT NULL,
-  min_level     TEXT NOT NULL CHECK (min_level IN ('SILVER','GOLD','PLATINUM')),
-  max_qty       INTEGER NOT NULL DEFAULT 1 CHECK (max_qty >= 1),
-  remaining_qty INTEGER NOT NULL DEFAULT 1 CHECK (remaining_qty >= 0),
-  active        INTEGER NOT NULL DEFAULT 1,
-  created_at    TEXT NOT NULL
+  min_level         TEXT NOT NULL CHECK (min_level IN ('SILVER','GOLD','PLATINUM')),
+  max_qty           INTEGER NOT NULL DEFAULT 1 CHECK (max_qty >= 1),
+  remaining_qty     INTEGER NOT NULL DEFAULT 1 CHECK (remaining_qty >= 0),
+  -- Two independent lifecycle flags (rows are never hard-deleted):
+  --   active = 0            -> soft-deleted; hidden everywhere.
+  --   is_decommissioned = 1 -> taken out of service; still visible, flagged.
+  active            INTEGER NOT NULL DEFAULT 1,
+  is_decommissioned INTEGER NOT NULL DEFAULT 0,
+  created_at        TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS usage_logs (

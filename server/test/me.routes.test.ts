@@ -84,18 +84,18 @@ test('decommissioned resources stay visible (flagged inactive) but cannot be use
     await fetch(`${base}/api/resources/${food.id}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json', ...bearer(ada.token) },
-      body: JSON.stringify({ active: false }),
+      body: JSON.stringify({ isDecommissioned: true }),
     });
 
-    // Passenger still sees it in discovery, marked inactive.
+    // Passenger still sees it in discovery, marked decommissioned.
     const list = (
       await (
         await fetch(`${base}/api/me/resources`, { headers: bearer(nova.token) })
       ).json()
-    ).data as { id: string; name: string; active: boolean }[];
+    ).data as { id: string; name: string; isDecommissioned: boolean }[];
     const shown = list.find((r) => r.id === food.id);
     assert.ok(shown, 'decommissioned resource is still listed');
-    assert.equal(shown!.active, false);
+    assert.equal(shown!.isDecommissioned, true);
 
     // But using it is rejected.
     const used = await fetch(`${base}/api/me/resources/${food.id}/use`, {

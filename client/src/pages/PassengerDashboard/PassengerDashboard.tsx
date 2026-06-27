@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
+import SearchInput from '../../components/SearchInput';
 import { listMyResources, useResource } from '../../api/resources';
 import type { Resource } from '../../types';
 
@@ -37,6 +38,7 @@ export default function PassengerDashboard() {
   const [pending, setPending] = useState<Resource | null>(null);
   const [busy, setBusy] = useState(false);
   const [grabbingId, setGrabbingId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     listMyResources()
@@ -61,6 +63,13 @@ export default function PassengerDashboard() {
     }
   }
 
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? resources.filter(
+        (r) => r.name.toLowerCase().includes(q) || r.minLevel.toLowerCase().includes(q),
+      )
+    : resources;
+
   return (
     <section className="mt-6">
       <h2 className="m-0 text-[1.15rem]">Available resources</h2>
@@ -75,61 +84,75 @@ export default function PassengerDashboard() {
       ) : resources.length === 0 ? (
         <p className="muted mt-4">No resources available to your tier yet.</p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {resources.map((r) => {
-            const decommissioned = !r.active;
-            const out = r.remainingQty <= 0;
-            const disabled = decommissioned || out;
-            const s = decommissioned
-              ? {
-                  card: 'border-white/[0.08] bg-white/[0.03] opacity-60',
-                  label: 'Decommissioned',
-                  labelColor: 'text-[#9fb3d8]',
-                }
-              : stock(r.remainingQty, r.maxQty);
-            return (
-              <div
-                key={r.id}
-                className={`flex justify-between gap-3 rounded-xl border p-5 ${s.card}`}
-              >
-                <div className="flex flex-col gap-1.5">
-                  <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
-                  <p className="m-0 text-[0.95rem]">
-                    <strong className="text-[1.05rem]">{r.remainingQty}</strong>
-                    <span className="text-[#9fb3d8]"> / {r.maxQty} remaining</span>
-                  </p>
-                  <span
-                    className={`text-[0.7rem] font-semibold uppercase tracking-[0.08em] ${s.labelColor}`}
+        <>
+          <div className="mt-4">
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Search by name or tier…"
+            />
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="muted mt-4">No resources match “{query}”.</p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {filtered.map((r) => {
+                const decommissioned = r.isDecommissioned;
+                const out = r.remainingQty <= 0;
+                const disabled = decommissioned || out;
+                const s = decommissioned
+                  ? {
+                      card: 'border-white/[0.08] bg-white/[0.03] opacity-60',
+                      label: 'Decommissioned',
+                      labelColor: 'text-[#9fb3d8]',
+                    }
+                  : stock(r.remainingQty, r.maxQty);
+                return (
+                  <div
+                    key={r.id}
+                    className={`flex justify-between gap-3 rounded-xl border p-5 ${s.card}`}
                   >
-                    {s.label}
-                  </span>
-                </div>
-                <div className="flex flex-col items-end justify-between gap-2">
-                  <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
-                  <button
-                    className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[rgba(90,208,255,0.45)] bg-[rgba(90,208,255,0.12)] px-3.5 py-1.5 text-[0.82rem] font-medium text-[#afe3ff] transition hover:border-[#5ad0ff] hover:bg-[rgba(90,208,255,0.2)] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={disabled}
-                    onMouseDown={() => setGrabbingId(r.id)}
-                    onMouseUp={() => setGrabbingId(null)}
-                    onMouseLeave={() => setGrabbingId(null)}
-                    onClick={() => setPending(r)}
-                  >
-                    {decommissioned ? (
-                      'Unavailable'
-                    ) : out ? (
-                      'Out of stock'
-                    ) : (
-                      <>
-                        <span aria-hidden>{grabbingId === r.id ? '✊' : '✋'}</span>
-                        Use
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    <div className="flex flex-col gap-1.5">
+                      <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
+                      <p className="m-0 text-[0.95rem]">
+                        <strong className="text-[1.05rem]">{r.remainingQty}</strong>
+                        <span className="text-[#9fb3d8]"> / {r.maxQty} remaining</span>
+                      </p>
+                      <span
+                        className={`text-[0.7rem] font-semibold uppercase tracking-[0.08em] ${s.labelColor}`}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end justify-between gap-2">
+                      <span className={`tier tier-${r.minLevel}`}>{r.minLevel}</span>
+                      <button
+                        className="flex cursor-grab items-center gap-1.5 rounded-lg border border-[rgba(90,208,255,0.45)] bg-[rgba(90,208,255,0.12)] px-3.5 py-1.5 text-[0.82rem] font-medium text-[#afe3ff] transition hover:border-[#5ad0ff] hover:bg-[rgba(90,208,255,0.2)] active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={disabled}
+                        onMouseDown={() => setGrabbingId(r.id)}
+                        onMouseUp={() => setGrabbingId(null)}
+                        onMouseLeave={() => setGrabbingId(null)}
+                        onClick={() => setPending(r)}
+                      >
+                        {decommissioned ? (
+                          'Unavailable'
+                        ) : out ? (
+                          'Out of stock'
+                        ) : (
+                          <>
+                            <span aria-hidden>{grabbingId === r.id ? '✊' : '✋'}</span>
+                            Use
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {pending && (

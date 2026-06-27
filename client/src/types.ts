@@ -33,6 +33,7 @@ export interface Resource {
   maxQty: number;
   remainingQty: number;
   active: boolean;
+  isDecommissioned: boolean;
   createdAt: string;
 }
 

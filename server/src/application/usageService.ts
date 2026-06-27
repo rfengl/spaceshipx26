@@ -46,10 +46,10 @@ export class UsageService {
       .filter((item): item is DemandItem => item !== null);
   }
 
-  /** Active resources with the lowest remaining stock ratio (most depleted first). */
+  /** In-service resources with the lowest remaining stock ratio (most depleted first). */
   shortages(limit: number): Resource[] {
     return this.resources
-      .findActive()
+      .findInService()
       .filter((r) => r.maxQty > 0)
       .sort((a, b) => a.remainingQty / a.maxQty - b.remainingQty / b.maxQty)
       .slice(0, limit);
@@ -74,8 +74,9 @@ export class UsageService {
     if (!user) throw httpError(401, 'Account no longer exists');
 
     const resource = this.resources.findById(resourceId);
-    if (!resource) throw httpError(404, 'Resource not found');
-    if (!resource.active) throw httpError(409, 'This resource is no longer available');
+    if (!resource || !resource.active) throw httpError(404, 'Resource not found');
+    if (resource.isDecommissioned)
+      throw httpError(409, 'This resource is no longer available');
     if (!hasAccess(user.membershipLevel, resource.minLevel)) {
       throw httpError(403, 'Your membership tier cannot access this resource');
     }
