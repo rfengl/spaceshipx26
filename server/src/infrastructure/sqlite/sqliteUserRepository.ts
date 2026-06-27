@@ -98,11 +98,14 @@ export class SqliteUserRepository implements UserRepository {
     if (!existing) return null;
     const name = changes.name ?? existing.name;
     const membershipLevel = changes.membershipLevel ?? existing.membershipLevel;
+    const username = changes.username ?? existing.username;
+    const passwordHash = changes.passwordHash ?? existing.passwordHash;
     this.db
       .prepare(
-        'UPDATE users SET name = ?, membership_level = ?, updated_at = ? WHERE id = ?',
+        `UPDATE users SET name = ?, membership_level = ?, username = ?, password_hash = ?, updated_at = ?
+         WHERE id = ?`,
       )
-      .run(name, membershipLevel, new Date().toISOString(), id);
+      .run(name, membershipLevel, username, passwordHash, new Date().toISOString(), id);
     return this.findById(id);
   }
 

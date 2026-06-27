@@ -8,6 +8,8 @@ interface Wrapped<T> {
 export interface PassengerChanges {
   name?: string;
   membershipLevel?: MembershipLevel;
+  username?: string;
+  password?: string; // omit/blank to leave unchanged
 }
 
 export async function listPassengers(): Promise<Passenger[]> {

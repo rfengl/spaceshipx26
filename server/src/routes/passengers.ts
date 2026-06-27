@@ -58,9 +58,16 @@ function validateNew(body: unknown): NewPassengerInput {
   };
 }
 
-function validateUpdate(body: unknown): UserUpdate {
+interface PassengerUpdateInput {
+  name?: string;
+  membershipLevel?: MembershipLevel;
+  username?: string;
+  password?: string; // plain; hashed in the handler. Blank/absent = unchanged.
+}
+
+function validateUpdate(body: unknown): PassengerUpdateInput {
   const src = (body ?? {}) as Record<string, unknown>;
-  const changes: UserUpdate = {};
+  const changes: PassengerUpdateInput = {};
   if (src.name !== undefined) {
     if (typeof src.name !== 'string' || !src.name.trim()) {
       throw badRequest('`name` must be a non-empty string');
@@ -72,6 +79,19 @@ function validateUpdate(body: unknown): UserUpdate {
       throw badRequest('`membershipLevel` must be SILVER, GOLD, or PLATINUM');
     }
     changes.membershipLevel = src.membershipLevel;
+  }
+  if (src.username !== undefined) {
+    if (typeof src.username !== 'string' || !src.username.trim()) {
+      throw badRequest('`username` must be a non-empty string');
+    }
+    changes.username = src.username.trim().toLowerCase();
+  }
+  // Only treat a non-empty password as a change request.
+  if (src.password !== undefined && src.password !== '') {
+    if (typeof src.password !== 'string' || src.password.length < 4) {
+      throw badRequest('`password` must be at least 4 characters');
+    }
+    changes.password = src.password;
   }
   return changes;
 }
@@ -118,7 +138,27 @@ export function createPassengersRouter(
     asyncHandler(async (req, res) => {
       const target = users.findById(req.params.id);
       if (!target) throw notFound();
-      const updated = users.update(req.params.id, validateUpdate(req.body));
+
+      const input = validateUpdate(req.body);
+      if (input.username && input.username !== target.username) {
+        const clash = users.findByUsername(input.username);
+        if (clash && clash.id !== target.id) {
+          throw conflict('That username is already taken');
+        }
+      }
+
+      const changes: UserUpdate = {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.membershipLevel !== undefined
+          ? { membershipLevel: input.membershipLevel }
+          : {}),
+        ...(input.username !== undefined ? { username: input.username } : {}),
+      };
+      if (input.password) {
+        changes.passwordHash = await hasher.hash(input.password);
+      }
+
+      const updated = users.update(req.params.id, changes);
       res.json({ data: toPublicUser(updated ?? target) });
     }),
   );

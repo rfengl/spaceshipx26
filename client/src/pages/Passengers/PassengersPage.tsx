@@ -4,11 +4,13 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
+import PasswordInput from '../../components/PasswordInput';
 import {
   listPassengers,
   createPassenger,
   updatePassenger,
   deletePassenger,
+  type PassengerChanges,
 } from '../../api/passengers';
 import type { MembershipLevel, NewPassenger, Passenger } from '../../types';
 
@@ -34,6 +36,7 @@ export default function PassengersPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NewPassenger>(emptyForm);
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [deleting, setDeleting] = useState<Passenger | null>(null);
@@ -58,17 +61,22 @@ export default function PassengersPage() {
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
+    setConfirmPassword('');
+    setError(null);
     setFormOpen(true);
   }
 
   function openEdit(passenger: Passenger) {
     setEditingId(passenger.id);
+    // Never load the current access code — blank means "keep unchanged".
     setForm({
       username: passenger.username,
       password: '',
       name: passenger.name,
       membershipLevel: passenger.membershipLevel,
     });
+    setConfirmPassword('');
+    setError(null);
     setFormOpen(true);
   }
 
@@ -76,21 +84,53 @@ export default function PassengersPage() {
     setFormOpen(false);
     setEditingId(null);
     setForm(emptyForm);
+    setConfirmPassword('');
+    setError(null);
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!form.name.trim()) return;
+    const name = form.name.trim();
+    const username = form.username.trim();
+    if (!name || !username) {
+      setError('Name and username are required.');
+      return;
+    }
+
+    const changingPassword = form.password !== '';
+    if (!editingId && !changingPassword) {
+      setError('An access code is required.');
+      return;
+    }
+    if (changingPassword) {
+      if (form.password.length < 4) {
+        setError('Access code must be at least 4 characters.');
+        return;
+      }
+      if (form.password !== confirmPassword) {
+        setError('Access codes do not match.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     setError(null);
     try {
       if (editingId) {
-        await updatePassenger(editingId, {
-          name: form.name,
+        const changes: PassengerChanges = {
+          name,
+          username,
+          membershipLevel: form.membershipLevel,
+        };
+        if (changingPassword) changes.password = form.password;
+        await updatePassenger(editingId, changes);
+      } else {
+        await createPassenger({
+          username,
+          password: form.password,
+          name,
           membershipLevel: form.membershipLevel,
         });
-      } else {
-        await createPassenger(form);
       }
       closeForm();
       await refresh();
@@ -132,13 +172,7 @@ export default function PassengersPage() {
           )}
         </div>
 
-        {!isCrew && (
-          <p className="muted mt-3">
-            Read-only — passenger management is restricted to Crew Leads.
-          </p>
-        )}
-
-        {error && <p className="error mt-3">⚠ {error}</p>}
+        {error && !formOpen && <p className="error mt-3">⚠ {error}</p>}
 
         {loading && passengers.length === 0 ? (
           <p className="muted mt-3">Loading passengers…</p>
@@ -200,32 +234,38 @@ export default function PassengersPage() {
               />
             </label>
 
-            {!editingId && (
-              <>
-                <label className={fieldLabel}>
-                  Username
-                  <input
-                    type="text"
-                    className="input"
-                    value={form.username}
-                    placeholder="e.g. nova.reyes"
-                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                    required
-                  />
-                </label>
-                <label className={fieldLabel}>
-                  Password
-                  <input
-                    type="password"
-                    className="input"
-                    value={form.password}
-                    placeholder="at least 4 characters"
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                    required
-                  />
-                </label>
-              </>
-            )}
+            <label className={fieldLabel}>
+              Username
+              <input
+                type="text"
+                className="input"
+                value={form.username}
+                placeholder="e.g. nova.reyes"
+                autoComplete="username"
+                onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                required
+              />
+            </label>
+
+            <label className={fieldLabel}>
+              {editingId ? 'Access Code (leave blank to keep current)' : 'Access Code'}
+              <PasswordInput
+                value={form.password}
+                onChange={(v) => setForm((f) => ({ ...f, password: v }))}
+                placeholder={editingId ? '••••••••' : 'at least 4 characters'}
+                required={!editingId}
+              />
+            </label>
+
+            <label className={fieldLabel}>
+              Confirm Access Code
+              <PasswordInput
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                placeholder="re-enter access code"
+                required={!editingId}
+              />
+            </label>
 
             <label className={fieldLabel}>
               Membership tier
@@ -246,6 +286,8 @@ export default function PassengersPage() {
                 ))}
               </select>
             </label>
+
+            {error && <p className="error m-0 text-[0.85rem]">⚠ {error}</p>}
 
             <div className="mt-4 flex justify-end gap-2.5">
               <button type="button" className="btn-ghost" onClick={closeForm}>

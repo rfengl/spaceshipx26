@@ -145,3 +145,59 @@ test('passenger routes require authentication (401)', async () => {
     assert.equal((await fetch(`${base}/api/passengers`)).status, 401);
   });
 });
+
+const findPassengerId = async (base: string, token: string, username: string) => {
+  const res = await fetch(`${base}/api/passengers`, { headers: authJson(token) });
+  const { data } = await res.json();
+  return (data as { id: string; username: string }[]).find(
+    (p) => p.username === username,
+  )!.id;
+};
+
+const tryLogin = (base: string, username: string, password: string) =>
+  fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+
+test('crew lead can change a passenger username and access code; blank keeps it', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const novaId = await findPassengerId(base, token, 'nova.reyes');
+
+    const updated = await fetch(`${base}/api/passengers/${novaId}`, {
+      method: 'PUT',
+      headers: authJson(token),
+      body: JSON.stringify({ username: 'nova.star', password: 'newpass1' }),
+    });
+    assert.equal(updated.status, 200);
+    assert.equal((await updated.json()).data.username, 'nova.star');
+
+    // New credentials work
+    assert.equal((await tryLogin(base, 'nova.star', 'newpass1')).status, 200);
+
+    // Update with a blank password leaves the password unchanged
+    await fetch(`${base}/api/passengers/${novaId}`, {
+      method: 'PUT',
+      headers: authJson(token),
+      body: JSON.stringify({ name: 'Nova Star', password: '' }),
+    });
+    assert.equal((await tryLogin(base, 'nova.star', 'newpass1')).status, 200);
+  });
+});
+
+test('updating a passenger to an existing username is rejected (409)', async () => {
+  const app = await buildSeededApp();
+  await withServer(app, async (base) => {
+    const token = await tokenFor(base, 'ada.lovelace');
+    const novaId = await findPassengerId(base, token, 'nova.reyes');
+    const res = await fetch(`${base}/api/passengers/${novaId}`, {
+      method: 'PUT',
+      headers: authJson(token),
+      body: JSON.stringify({ username: 'milo.chen' }), // already taken
+    });
+    assert.equal(res.status, 409);
+  });
+});

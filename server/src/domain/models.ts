@@ -34,6 +34,8 @@ export interface NewUser {
 export interface UserUpdate {
   name?: string;
   membershipLevel?: MembershipLevel;
+  username?: string;
+  passwordHash?: string;
 }
 
 export interface Resource {
