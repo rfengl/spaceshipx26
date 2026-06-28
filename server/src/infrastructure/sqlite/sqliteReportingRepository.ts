@@ -1,8 +1,10 @@
 import type { DB } from '../../db/connection.js';
 import { MEMBERSHIP_LEVELS, type MembershipLevel } from '../../domain/membership.js';
 import type {
+  DailyUsage,
   ReportingRepository,
   TierSummary,
+  TierUsage,
 } from '../../domain/ports/reportingRepository.js';
 
 export class SqliteReportingRepository implements ReportingRepository {
@@ -60,5 +62,38 @@ export class SqliteReportingRepository implements ReportingRepository {
         uses: uByLevel.get(level) ?? 0,
       };
     });
+  }
+
+  dailyUsage(resourceId: string, days: number): DailyUsage[] {
+    // Window start = `days` days back, inclusive of today. Compared against the
+    // YYYY-MM-DD prefix of the ISO timestamp (the date filter used everywhere).
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - (days - 1));
+    const from = cutoff.toISOString().slice(0, 10);
+
+    return this.db
+      .prepare(
+        `SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS count
+         FROM audit_trail
+         WHERE action = 'USE' AND resource_id = @resourceId
+           AND substr(created_at, 1, 10) >= @from
+         GROUP BY day
+         ORDER BY day ASC`,
+      )
+      .all({ resourceId, from }) as DailyUsage[];
+  }
+
+  usageByTier(resourceId: string): TierUsage[] {
+    const rows = this.db
+      .prepare(
+        `SELECT u.membership_level AS level, COUNT(*) AS uses
+         FROM audit_trail a JOIN users u ON u.id = a.user_id
+         WHERE a.action = 'USE' AND a.resource_id = @resourceId
+         GROUP BY u.membership_level`,
+      )
+      .all({ resourceId }) as { level: MembershipLevel; uses: number }[];
+
+    const byLevel = new Map(rows.map((r) => [r.level, r.uses]));
+    return MEMBERSHIP_LEVELS.map((level) => ({ level, uses: byLevel.get(level) ?? 0 }));
   }
 }

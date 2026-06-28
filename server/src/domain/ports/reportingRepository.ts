@@ -12,7 +12,28 @@ export interface TierSummary {
   uses: number; // total uses by passengers of this tier
 }
 
+// One day's USE count for a resource (day is the YYYY-MM-DD date).
+export interface DailyUsage {
+  day: string;
+  count: number;
+}
+
+// USE count for a resource attributed to one membership tier.
+export interface TierUsage {
+  level: MembershipLevel;
+  uses: number;
+}
+
 export interface ReportingRepository {
   /** One summary row per membership tier (SILVER → PLATINUM). */
   tierSummary(): TierSummary[];
+
+  /**
+   * Daily USE counts for a resource over the last `days` days (inclusive of
+   * today), oldest first. Sparse — only days with usage appear.
+   */
+  dailyUsage(resourceId: string, days: number): DailyUsage[];
+
+  /** USE counts for a resource per membership tier, zero-filled across tiers. */
+  usageByTier(resourceId: string): TierUsage[];
 }
