@@ -36,10 +36,21 @@ function Home() {
 }
 
 // Guard layout route: only Crew Leads may reach the admin pages nested under it;
-// everyone else is redirected home.
-function RequireCrew() {
+// everyone else is redirected home. Exported for direct access-control testing.
+export function RequireCrew() {
   const context = useAuth();
   return context.user.role === 'CREW_LEAD' ? (
+    <Outlet context={context} />
+  ) : (
+    <Navigate to="/" replace />
+  );
+}
+
+// Guard layout route: only Passengers may reach the passenger pages nested under it;
+// everyone else is redirected home. Exported for direct access-control testing.
+export function RequirePassenger() {
+  const context = useAuth();
+  return context.user.role === 'PASSENGER' ? (
     <Outlet context={context} />
   ) : (
     <Navigate to="/" replace />
@@ -126,9 +137,12 @@ export default function App() {
             <Route path="reports" element={<AggregatedReportsPage />} />
           </Route>
 
+          <Route element={<RequirePassenger />}>
+            <Route path="history" element={<PersonalHistoryPage />} />
+          </Route>
+
           {/* Open to any signed-in user. */}
           <Route path="crew-leads" element={<CrewLeadsPage />} />
-          <Route path="history" element={<PersonalHistoryPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
