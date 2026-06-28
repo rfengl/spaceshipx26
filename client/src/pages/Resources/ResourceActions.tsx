@@ -1,6 +1,7 @@
 import type { Resource } from '../../types';
 
 export interface ResourceActionHandlers {
+  onAnalytics: (r: Resource) => void;
   onRefill: (r: Resource) => void;
   onWriteOff: (r: Resource) => void;
   onEdit: (r: Resource) => void;
@@ -23,6 +24,7 @@ const btn =
 export default function ResourceActions({
   resource: r,
   className = '',
+  onAnalytics,
   onRefill,
   onWriteOff,
   onEdit,
@@ -35,6 +37,26 @@ export default function ResourceActions({
 
   return (
     <div className={`flex flex-wrap items-center justify-end gap-1 ${className}`}>
+      <button
+        type="button"
+        className={btn}
+        title="Usage trend"
+        aria-label="Usage trend"
+        onClick={() => onAnalytics(r)}
+      >
+        {/* Pie-chart glyph linking to this resource's trend page. */}
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+          <circle
+            cx="8"
+            cy="8"
+            r="6.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path d="M8 8 L8 1.5 A6.5 6.5 0 0 1 14.5 8 Z" fill="currentColor" />
+        </svg>
+      </button>
       <button
         type="button"
         className={btn}

@@ -18,6 +18,7 @@ const resource = (over: Partial<Resource> = {}): Resource => ({
 
 const renderActions = (r: Resource) => {
   const handlers = {
+    onAnalytics: vi.fn(),
     onRefill: vi.fn(),
     onWriteOff: vi.fn(),
     onEdit: vi.fn(),
@@ -68,6 +69,7 @@ describe('ResourceActions', () => {
     const { rerender } = render(
       <ResourceActions
         resource={resource({ isDecommissioned: false })}
+        onAnalytics={vi.fn()}
         onRefill={vi.fn()}
         onWriteOff={vi.fn()}
         onEdit={vi.fn()}
@@ -80,6 +82,7 @@ describe('ResourceActions', () => {
     rerender(
       <ResourceActions
         resource={resource({ isDecommissioned: true })}
+        onAnalytics={vi.fn()}
         onRefill={vi.fn()}
         onWriteOff={vi.fn()}
         onEdit={vi.fn()}
@@ -88,6 +91,12 @@ describe('ResourceActions', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Recommission' })).toBeDefined();
+  });
+
+  it('reports the resource when the usage-trend button is clicked', () => {
+    const { onAnalytics } = renderActions(resource());
+    fireEvent.click(button('Usage trend'));
+    expect(onAnalytics).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }));
   });
 
   it('reports edit and delete for the resource', () => {

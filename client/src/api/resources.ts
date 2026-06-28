@@ -26,6 +26,31 @@ export async function getShortages(): Promise<Resource[]> {
   return (await apiFetch<Wrapped<Resource[]>>('/api/reports/shortages')).data;
 }
 
+export interface DailyUsage {
+  day: string; // YYYY-MM-DD
+  count: number;
+}
+
+export interface TierUsage {
+  level: MembershipLevel;
+  uses: number;
+}
+
+export interface ResourceUsage {
+  resource: Resource;
+  daily: DailyUsage[];
+  byTier: TierUsage[];
+}
+
+/** Per-resource usage analytics: a daily series + a by-tier breakdown (crew-lead). */
+export async function getResourceUsage(id: string, days = 30): Promise<ResourceUsage> {
+  return (
+    await apiFetch<Wrapped<ResourceUsage>>(
+      `/api/reports/resources/${id}/usage?days=${days}`,
+    )
+  ).data;
+}
+
 /** Usage count per resource (resourceId → uses), for demand-based sorting. */
 export async function getResourceDemand(): Promise<Record<string, number>> {
   const data = (

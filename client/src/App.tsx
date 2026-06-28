@@ -15,6 +15,9 @@ import type { AuthUser } from './types';
 // downloads the crew-only admin pages, and vice-versa. The landing surfaces
 // (login + the two home dashboards above) stay eager so there's no flash there.
 const ResourcesPage = lazy(() => import('./pages/Resources/ResourcesPage'));
+const ResourceAnalyticsPage = lazy(
+  () => import('./pages/Resources/ResourceAnalyticsPage'),
+);
 const PassengersPage = lazy(() => import('./pages/Passengers/PassengersPage'));
 const CrewLeadsPage = lazy(() => import('./pages/CrewLeads/CrewLeadsPage'));
 const AuditTrailPage = lazy(() => import('./pages/AuditTrail/AuditTrailPage'));
@@ -132,6 +135,7 @@ export default function App() {
           {/* Crew-only admin pages share a single guard. */}
           <Route element={<RequireCrew />}>
             <Route path="resources" element={<ResourcesPage />} />
+            <Route path="resources/:id" element={<ResourceAnalyticsPage />} />
             <Route path="passengers" element={<PassengersPage />} />
             <Route path="audit-trail" element={<AuditTrailPage />} />
             <Route path="reports" element={<AggregatedReportsPage />} />

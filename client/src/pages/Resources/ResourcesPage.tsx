@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import { usePersistentState } from '../../hooks/usePersistentState';
@@ -40,6 +40,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 export default function ResourcesPage() {
   const { user } = useAuth();
   const isCrew = user.role === 'CREW_LEAD';
+  const navigate = useNavigate();
 
   const [searchParams] = useSearchParams();
   const focusId = searchParams.get('focus');
@@ -175,6 +176,7 @@ export default function ResourcesPage() {
 
   // Crew action handlers, shared by the table and card views.
   const actions: ResourceActionHandlers = {
+    onAnalytics: (r) => navigate(`/resources/${r.id}`),
     onRefill: setRefilling,
     onWriteOff: setWritingOff,
     onEdit: setEditing,
