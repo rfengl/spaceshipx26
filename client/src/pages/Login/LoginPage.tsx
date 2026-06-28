@@ -34,7 +34,7 @@ export default function LoginPage({ onAuthenticated }: Props) {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!username.trim() || !password) {
-      setError('Enter your callsign and access code to proceed.');
+      setError('Enter your pilot name and access code to proceed.');
       return;
     }
     setSubmitting(true);
@@ -69,7 +69,7 @@ export default function LoginPage({ onAuthenticated }: Props) {
           </div>
 
           <label className="flex flex-col gap-1.5 text-[0.78rem] uppercase tracking-[0.12em] text-[#9fb3d8]">
-            PILOT
+            Pilot Name
             <input
               type="text"
               className={inputClass}
