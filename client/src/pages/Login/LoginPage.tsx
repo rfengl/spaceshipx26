@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 
 import { login } from '../../api/auth';
 import type { AuthUser } from '../../types';
+import PortHole from './PortHole';
 
 interface Props {
   onAuthenticated: (user: AuthUser) => void;
@@ -52,73 +53,8 @@ export default function LoginPage({ onAuthenticated }: Props) {
   return (
     <div className="grid min-h-screen place-items-center px-4 py-8 bg-[radial-gradient(120%_80%_at_50%_-10%,#243049_0%,#0c1018_55%,#05070d_100%)]">
       <div className="grid w-[min(760px,100%)] grid-cols-1 items-center gap-6 rounded-[22px] border border-[rgba(140,170,220,0.18)] bg-[linear-gradient(160deg,rgba(40,52,76,0.65),rgba(12,16,26,0.85))] px-8 py-7 shadow-[0_30px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md md:grid-cols-[240px_1fr] md:gap-10">
-        {/* The window: looking out into the universe (bespoke art classes) */}
-        <div className="porthole">
-          <div className="space">
-            <div className="stars stars-far" />
-            <div className="stars stars-mid" />
-            <div className="stars stars-near" />
-            <div className="nebula" />
-            <div className="planet" />
-            <div className="shooting-star" />
-
-            <div className="ship">
-              <svg viewBox="0 0 240 90" width="150" aria-hidden="true">
-                <defs>
-                  <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stopColor="#eef4ff" />
-                    <stop offset="0.5" stopColor="#aebfdd" />
-                    <stop offset="1" stopColor="#5a6a8c" />
-                  </linearGradient>
-                  <radialGradient id="flame" cx="0.2" cy="0.5" r="0.8">
-                    <stop offset="0" stopColor="#fff7d6" />
-                    <stop offset="0.4" stopColor="#ffb347" />
-                    <stop offset="1" stopColor="rgba(255,80,40,0)" />
-                  </radialGradient>
-                </defs>
-                <ellipse
-                  className="thrust"
-                  cx="36"
-                  cy="45"
-                  rx="40"
-                  ry="11"
-                  fill="url(#flame)"
-                />
-                <path
-                  d="M60 45 C90 18 160 12 214 30 C226 34 232 40 232 45 C232 50 226 56 214 60 C160 78 90 72 60 45 Z"
-                  fill="url(#hull)"
-                />
-                <path d="M96 36 L120 8 L132 34 Z" fill="#6f7fa6" />
-                <path d="M96 54 L120 82 L132 56 Z" fill="#55648a" />
-                <ellipse cx="186" cy="45" rx="16" ry="11" fill="#7fe9ff" opacity="0.95" />
-                <ellipse
-                  cx="186"
-                  cy="45"
-                  rx="16"
-                  ry="11"
-                  fill="none"
-                  stroke="#dff7ff"
-                  strokeWidth="2"
-                />
-                <circle cx="120" cy="45" r="3.2" fill="#ffd86b" />
-                <circle cx="138" cy="45" r="3.2" fill="#ffd86b" />
-                <circle cx="156" cy="45" r="3.2" fill="#ffd86b" />
-              </svg>
-            </div>
-
-            <div className="glass-glare" />
-          </div>
-
-          <div className="frame" />
-          <span className="bolt b1" />
-          <span className="bolt b2" />
-          <span className="bolt b3" />
-          <span className="bolt b4" />
-          <span className="bolt b5" />
-          <span className="bolt b6" />
-          <span className="bolt b7" />
-          <span className="bolt b8" />
-        </div>
+        {/* The window: looking out into the universe (bespoke art component) */}
+        <PortHole />
 
         {/* The console: login controls (Tailwind utilities) */}
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>

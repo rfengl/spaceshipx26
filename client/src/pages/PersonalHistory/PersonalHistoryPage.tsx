@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { usePagination } from '../../hooks/usePagination';
-import PaginationBar from '../../components/PaginationBar';
+import Pagination from '../../components/Pagination';
 import { getMyHistory, type AuditEntry } from '../../api/audit';
 import BackDashboardButton from '../../components/BackDashboardButton';
 
@@ -53,7 +53,7 @@ export default function PersonalHistoryPage() {
   // The summary reflects the active filters (so the date range affects totals).
   const summary = groupByResource(filtered);
 
-  const { paged, paging } = usePagination(filtered, {
+  const { pageItems, ...paging } = usePagination(filtered, {
     storageKey: 'history.pageSize',
     resetKey: `${resourceId}|${from}|${to}`,
   });
@@ -164,7 +164,7 @@ export default function PersonalHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {paged.map((e) => (
+                {pageItems.map((e) => (
                   <tr key={e.id}>
                     <td data-label="When">{fmt(e.at)}</td>
                     <td data-label="Resource">{e.resourceName}</td>
@@ -176,7 +176,7 @@ export default function PersonalHistoryPage() {
               </tbody>
             </table>
 
-            <PaginationBar {...paging} />
+            <Pagination {...paging} />
           </>
         )}
       </section>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import PaginationBar from '../../components/PaginationBar';
+import Pagination from '../../components/Pagination';
 import { getAuditPage, type AuditAction, type AuditEntry } from '../../api/audit';
 import { listResources } from '../../api/resources';
 import { listCrewLeads } from '../../api/crewLeads';
@@ -58,9 +58,9 @@ export default function AuditTrailPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
-  // const [page, setPage] = useState(1);
-  // const [pageSize, setPageSize] = usePersistentState('audit.pageSize', 10);
-  const { paging } = usePagination(null, {
+  // Server-side mode: no client array to slice, so `total` drives the page
+  // count and the page below is fetched from the API.
+  const paging = usePagination(null, {
     total,
     storageKey: 'audit.pageSize',
     resetKey: `${userId}-${resourceId}-${from}-${to}`,
@@ -255,7 +255,7 @@ export default function AuditTrailPage() {
               </tbody>
             </table>
 
-            <PaginationBar {...paging} />
+            <Pagination {...paging} />
           </>
         )}
       </section>

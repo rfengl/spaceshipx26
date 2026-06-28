@@ -38,8 +38,12 @@ function Home() {
 // Guard layout route: only Crew Leads may reach the admin pages nested under it;
 // everyone else is redirected home.
 function RequireCrew() {
-  const { user } = useAuth();
-  return user.role === 'CREW_LEAD' ? <Outlet /> : <Navigate to="/" replace />;
+  const context = useAuth();
+  return context.user.role === 'CREW_LEAD' ? (
+    <Outlet context={context} />
+  ) : (
+    <Navigate to="/" replace />
+  );
 }
 
 export default function App() {

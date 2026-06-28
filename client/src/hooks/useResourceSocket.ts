@@ -31,6 +31,10 @@ export function useResourceSocket(onChange: (change: ResourceChange) => void) {
         `${proto}://${window.location.host}/ws/resources?token=${encodeURIComponent(token)}`,
       );
 
+      socket.onopen = () => {
+        // If we were torn down mid-handshake, it's now safe to close.
+        if (disposed) socket?.close();
+      };
       socket.onmessage = (event) => {
         try {
           handler.current(JSON.parse(event.data) as ResourceChange);
@@ -47,7 +51,10 @@ export function useResourceSocket(onChange: (change: ResourceChange) => void) {
     return () => {
       disposed = true;
       if (retry) clearTimeout(retry);
-      socket?.close();
+      // Closing a socket that is still CONNECTING aborts the handshake and logs
+      // "WebSocket is closed before the connection is established." Only close an
+      // open socket here; the onopen handler closes one that's still connecting.
+      if (socket && socket.readyState === WebSocket.OPEN) socket.close();
     };
   }, []);
 }

@@ -71,9 +71,11 @@ password **`mars2026`**:
 
 ## Real-time resource updates
 
-Resources update **live**. Any change a crew lead or passenger makes is pushed to every
-other connected client over a WebSocket within the same request — there is no polling
-loop and no "refresh to see changes". Concretely, all of these broadcast instantly:
+The brief lists **"Monitor real-time activity and usage reports"** as a Crew Lead
+permission; this implements that directly. Resources update **live** — any change a crew
+lead or passenger makes is pushed to every other connected client over a WebSocket within
+the same request, so the crew dashboards reflect ship activity as it happens, with no
+polling loop and no "refresh to see changes". Concretely, all of these broadcast instantly:
 
 | Trigger                                          | Event              |
 | ------------------------------------------------ | ------------------ |
@@ -230,20 +232,17 @@ as deliberate engineering choices, not scope drift:
   (a person aboard) distinguished by a flag, rather than separate tables — simpler,
   with one source of truth for identity and role.
 
-- **Real-time resource stream.** Rather than ask clients to poll or refresh, resource
-  changes are pushed over a WebSocket and patched in place, behind a `ResourcePublisher`
-  port so the domain stays transport-agnostic. See [Real-time resource updates](#real-time-resource-updates).
-
 - **Append-only audit trail + server-side pagination.** Every resource activity is logged
   to one `audit_trail` table. Because that log grows unbounded, the audit endpoint
   **paginates and filters in SQL** (`WHERE` + `COUNT` + `LIMIT/OFFSET`, parameterized),
   returning one page plus a total count — the whole log never loads to render a screen.
   The bounded lists stay client-side, where it's simpler and plays nicely with live updates.
 
-- **Soft-delete & lifecycle everywhere.** Passengers and resources are never hard-deleted;
-  resources additionally support decommission/recommission. This preserves history (the
-  audit trail still resolves names for removed entities) and makes destructive actions
-  reversible.
+- **Soft-delete over hard-delete.** The brief requires provisioning and _decommissioning_
+  resources (implemented as a reversible out-of-service flag, plus recommission to undo
+  it). On top of that, neither passengers nor resources are ever truly removed — delete is
+  a soft flag. This preserves history (the audit trail still resolves names for removed
+  entities) and keeps destructive actions reversible.
 
 - **Crew-lead governance with approval (swap workflow).** The brief fixes the ship at
   _exactly three_ Crew Leads but gives no mechanism to change them. Rather than

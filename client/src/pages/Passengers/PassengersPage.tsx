@@ -5,7 +5,7 @@ import { usePersistentState } from '../../hooks/usePersistentState';
 import { usePagination } from '../../hooks/usePagination';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
-import PaginationBar from '../../components/PaginationBar';
+import Pagination from '../../components/Pagination';
 import AddPassengerButton from './AddPassengerButton';
 import PassengerFormModal from './PassengerFormModal';
 import { listPassengers, deletePassenger } from '../../api/passengers';
@@ -130,7 +130,7 @@ export default function PassengersPage() {
     });
   }, [filtered, sortKey, sortDir]);
 
-  const { paged, paging } = usePagination(sorted, {
+  const { pageItems, ...paging } = usePagination(sorted, {
     storageKey: 'passengers.pageSize',
     resetKey: `${query}|${sortKey}|${sortDir}`,
   });
@@ -193,7 +193,7 @@ export default function PassengersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paged.map((p) => (
+                    {pageItems.map((p) => (
                       <tr key={p.id}>
                         <td data-label="Name">{p.name}</td>
                         <td data-label="Username">{p.username}</td>
@@ -220,7 +220,7 @@ export default function PassengersPage() {
                   </tbody>
                 </table>
 
-                <PaginationBar {...paging} />
+                <Pagination {...paging} />
               </>
             )}
           </>

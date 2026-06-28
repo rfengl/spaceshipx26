@@ -9,7 +9,7 @@ import { useResourceSocket } from '../../hooks/useResourceSocket';
 import { sameResource } from '../../utils/sameResource';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
-import PaginationBar from '../../components/PaginationBar';
+import Pagination from '../../components/Pagination';
 import ResourceActions from './ResourceActions';
 import ProvisionResourceButton from './ProvisionResourceButton';
 import ResourceFormModal from './ResourceFormModal';
@@ -218,7 +218,7 @@ export default function ResourcesPage() {
     });
   }, [filtered, sortKey, sortDir, demand]);
 
-  const { paged, paging } = usePagination(sorted, {
+  const { pageItems, ...paging } = usePagination(sorted, {
     storageKey: 'resources.pageSize',
     resetKey: `${query}|${sortKey}|${sortDir}`,
   });
@@ -298,7 +298,7 @@ export default function ResourcesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paged.map((r) => {
+                      {pageItems.map((r) => {
                         const focused = r.id === focusId;
                         return (
                           <tr
@@ -340,7 +340,7 @@ export default function ResourcesPage() {
                   </table>
                 ) : (
                   <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {paged.map((r) => {
+                    {pageItems.map((r) => {
                       const focused = r.id === focusId;
                       return (
                         <div
@@ -394,7 +394,7 @@ export default function ResourcesPage() {
                   </div>
                 )}
 
-                <PaginationBar {...paging} />
+                <Pagination {...paging} />
               </>
             )}
           </>
