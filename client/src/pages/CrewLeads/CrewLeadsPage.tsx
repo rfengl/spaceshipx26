@@ -11,8 +11,7 @@ import {
 } from '../../api/crewLeads';
 import type { ChangeRequest, Passenger } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
-
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+import { errorMessage } from '../../utils/errorMessage';
 
 export default function CrewLeadsPage() {
   const { user } = useAuth();
@@ -40,7 +39,7 @@ export default function CrewLeadsPage() {
       setPassengers(pax);
       setRequests(reqs);
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -56,7 +55,7 @@ export default function CrewLeadsPage() {
       await (action === 'approve' ? approveRequest(id) : rejectRequest(id));
       await refresh();
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
     }
   }
 

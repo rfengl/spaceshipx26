@@ -4,8 +4,7 @@ import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/Pagination';
 import { getMyHistory, type AuditEntry } from '../../api/audit';
 import BackDashboardButton from '../../components/BackDashboardButton';
-
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+import { errorMessage } from '../../utils/errorMessage';
 
 const fmt = (at: string) =>
   new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -22,7 +21,7 @@ export default function PersonalHistoryPage() {
   useEffect(() => {
     getMyHistory()
       .then(setEntries)
-      .catch((e) => setError(errMsg(e)))
+      .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 

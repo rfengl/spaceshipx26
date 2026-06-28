@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
 
 import Modal from '../../components/Modal/Modal';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { writeOffResource } from '../../api/resources';
 import type { Resource } from '../../types';
 
 const REASONS = ['Expired', 'Broken', 'Lost', 'Other'];
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 interface Props {
   resource: Resource;
@@ -18,21 +18,14 @@ interface Props {
 export default function WriteOffModal({ resource, onClose, onApplied }: Props) {
   const [amount, setAmount] = useState(1);
   const [reason, setReason] = useState(REASONS[0]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAsyncAction();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
+    await run(async () => {
       onApplied(await writeOffResource(resource.id, amount, reason));
       onClose();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

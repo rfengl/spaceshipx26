@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
 
 import Modal from '../../components/Modal/Modal';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { refillResource } from '../../api/resources';
 import type { Resource } from '../../types';
 
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 interface Props {
   resource: Resource;
@@ -17,21 +17,14 @@ interface Props {
 export default function RefillModal({ resource, onClose, onApplied }: Props) {
   const room = resource.maxQty - resource.remainingQty;
   const [amount, setAmount] = useState(1); // default one unit; "Fill to max" tops up
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAsyncAction();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
+    await run(async () => {
       onApplied(await refillResource(resource.id, amount));
       onClose();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

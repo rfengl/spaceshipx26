@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
 
 import Modal from '../../components/Modal/Modal';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { createResource, updateResource } from '../../api/resources';
 import type { MembershipLevel, NewResource, Resource } from '../../types';
 
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 interface Props {
   // When provided, the modal edits that resource; otherwise it provisions a new one.
@@ -23,25 +23,18 @@ export default function ResourceFormModal({ resource, onClose, onSaved }: Props)
       ? { name: resource.name, minLevel: resource.minLevel, maxQty: resource.maxQty }
       : { name: '', minLevel: 'SILVER', maxQty: 1 },
   );
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAsyncAction();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!form.name.trim()) return;
-    setSubmitting(true);
-    setError(null);
-    try {
+    await run(async () => {
       const saved = resource
         ? await updateResource(resource.id, form)
         : await createResource(form);
       onSaved(saved);
       onClose();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setSubmitting(false);
-    }
+    });
   }
 
   return (
@@ -93,8 +86,8 @@ export default function ResourceFormModal({ resource, onClose, onSaved }: Props)
           <button type="button" className="btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn" disabled={submitting}>
-            {submitting ? 'Saving…' : editing ? 'Save' : 'Add resource'}
+          <button type="submit" className="btn" disabled={busy}>
+            {busy ? 'Saving…' : editing ? 'Save' : 'Add resource'}
           </button>
         </div>
       </form>

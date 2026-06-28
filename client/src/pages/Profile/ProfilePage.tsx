@@ -6,8 +6,8 @@ import ReauthConfirmModal from './ReauthConfirmModal';
 import { getMyProfile, updateMyProfile, type ProfileUpdate } from '../../api/profile';
 import type { Passenger } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
+import { errorMessage } from '../../utils/errorMessage';
 
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
 
 export default function ProfilePage() {
@@ -33,7 +33,7 @@ export default function ProfilePage() {
         setName(p.name);
         setUsername(p.username);
       })
-      .catch((e) => setError(errMsg(e)))
+      .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 

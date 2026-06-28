@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { getAggregateReport, type TierSummary } from '../../api/reports';
 import BackDashboardButton from '../../components/BackDashboardButton';
-
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+import { errorMessage } from '../../utils/errorMessage';
 
 // Colour the stock bar by how full it is (matches the shortage hints elsewhere).
 function barColor(ratio: number) {
@@ -28,7 +27,7 @@ export default function AggregatedReportsPage() {
   useEffect(() => {
     getAggregateReport()
       .then(setRows)
-      .catch((e) => setError(errMsg(e)))
+      .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 

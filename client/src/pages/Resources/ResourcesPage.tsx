@@ -23,6 +23,7 @@ import {
 } from '../../api/resources';
 import { TIER_RANK, type Resource } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
+import { errorMessage } from '../../utils/errorMessage';
 
 type SortKey =
   | 'name'
@@ -40,8 +41,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'highDemand', label: 'High demand' },
   { value: 'shortages', label: 'Shortages' },
 ];
-
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 // Colour cards by remaining stock so the worst shortages stand out.
 function stockCard(remaining: number, max: number) {
@@ -118,7 +117,7 @@ export default function ResourcesPage() {
     try {
       setResources(await listResources());
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -168,7 +167,7 @@ export default function ResourcesPage() {
         }),
       );
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
     }
   }
 
@@ -181,7 +180,7 @@ export default function ResourcesPage() {
       removeResourceById(deleting.id);
       setDeleting(null);
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
     } finally {
       setDeleteBusy(false);
     }

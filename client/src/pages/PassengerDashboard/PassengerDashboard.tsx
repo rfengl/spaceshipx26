@@ -7,8 +7,7 @@ import { useResourceSocket } from '../../hooks/useResourceSocket';
 import { sameResource } from '../../utils/sameResource';
 import { listMyResources, useResource } from '../../api/resources';
 import type { Resource } from '../../types';
-
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+import { errorMessage } from '../../utils/errorMessage';
 
 // Stock level → card styling. < 1/3 remaining = critical (red), < 1/2 = low (yellow).
 function stock(remaining: number, max: number) {
@@ -46,7 +45,7 @@ export default function PassengerDashboard() {
   useEffect(() => {
     listMyResources()
       .then(setResources)
-      .catch((e) => setError(errMsg(e)))
+      .catch((e) => setError(errorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -80,7 +79,7 @@ export default function PassengerDashboard() {
       setResources((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
       setPending(null);
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
       setPending(null);
     } finally {
       setBusy(false);

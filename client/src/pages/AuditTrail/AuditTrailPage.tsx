@@ -7,8 +7,7 @@ import { listCrewLeads } from '../../api/crewLeads';
 import { listPassengers } from '../../api/passengers';
 import { usePagination } from '../../hooks/usePagination';
 import BackDashboardButton from '../../components/BackDashboardButton';
-
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+import { errorMessage } from '../../utils/errorMessage';
 
 const fmt = (at: string) =>
   new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -106,7 +105,7 @@ export default function AuditTrailPage() {
         setEntries(res.data);
         setTotal(res.total);
       })
-      .catch((e) => active && setError(errMsg(e)))
+      .catch((e) => active && setError(errorMessage(e)))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;

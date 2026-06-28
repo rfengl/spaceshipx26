@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 
 import Modal from '../../components/Modal/Modal';
 import PasswordInput from '../../components/PasswordInput';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import {
   createPassenger,
   updatePassenger,
@@ -11,7 +12,6 @@ import type { MembershipLevel, NewPassenger, Passenger } from '../../types';
 
 const TIERS: MembershipLevel[] = ['SILVER', 'GOLD', 'PLATINUM'];
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 interface Props {
   // When provided the modal edits that passenger; otherwise it adds a new one.
@@ -34,8 +34,7 @@ export default function PassengerFormModal({ passenger, onClose, onSaved }: Prop
       : { username: '', password: '', name: '', membershipLevel: 'SILVER' },
   );
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run, setError } = useAsyncAction();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -62,9 +61,7 @@ export default function PassengerFormModal({ passenger, onClose, onSaved }: Prop
       }
     }
 
-    setSubmitting(true);
-    setError(null);
-    try {
+    await run(async () => {
       let saved: Passenger;
       if (passenger) {
         const changes: PassengerChanges = {
@@ -84,11 +81,7 @@ export default function PassengerFormModal({ passenger, onClose, onSaved }: Prop
       }
       onSaved(saved);
       onClose();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setSubmitting(false);
-    }
+    });
   }
 
   return (
@@ -166,8 +159,8 @@ export default function PassengerFormModal({ passenger, onClose, onSaved }: Prop
           <button type="button" className="btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn" disabled={submitting}>
-            {submitting ? 'Saving…' : editing ? 'Save' : 'Add passenger'}
+          <button type="submit" className="btn" disabled={busy}>
+            {busy ? 'Saving…' : editing ? 'Save' : 'Add passenger'}
           </button>
         </div>
       </form>

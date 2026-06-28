@@ -11,6 +11,7 @@ import PassengerFormModal from './PassengerFormModal';
 import { listPassengers, deletePassenger } from '../../api/passengers';
 import { TIER_RANK, type Passenger } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
+import { errorMessage } from '../../utils/errorMessage';
 
 type SortKey = 'name' | 'username' | 'membershipLevel';
 
@@ -41,7 +42,6 @@ const SortHeader = ({
     </th>
   );
 };
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 export default function PassengersPage() {
   const { user } = useAuth();
@@ -76,7 +76,7 @@ export default function PassengersPage() {
     try {
       setPassengers(await listPassengers());
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export default function PassengersPage() {
       setPassengers((prev) => prev.filter((p) => p.id !== deleting.id));
       setDeleting(null);
     } catch (e) {
-      setError(errMsg(e));
+      setError(errorMessage(e));
     } finally {
       setDeleteBusy(false);
     }

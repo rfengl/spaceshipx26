@@ -2,9 +2,9 @@ import { useState, type FormEvent } from 'react';
 
 import Modal from '../../components/Modal/Modal';
 import PasswordInput from '../../components/PasswordInput';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 interface Props {
   // Performs the protected action with the entered code; throws to surface an error.
@@ -19,8 +19,7 @@ interface Props {
  */
 export default function ReauthConfirmModal({ onConfirm, onClose }: Props) {
   const [currentCode, setCurrentCode] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run, setError } = useAsyncAction();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -28,16 +27,10 @@ export default function ReauthConfirmModal({ onConfirm, onClose }: Props) {
       setError('Enter your current access code.');
       return;
     }
-    setSaving(true);
-    setError(null);
-    try {
+    await run(async () => {
       await onConfirm(currentCode);
       onClose();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
   return (
@@ -63,8 +56,8 @@ export default function ReauthConfirmModal({ onConfirm, onClose }: Props) {
           <button type="button" className="btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn" disabled={saving}>
-            {saving ? 'Saving…' : 'Confirm & save'}
+          <button type="submit" className="btn" disabled={busy}>
+            {busy ? 'Saving…' : 'Confirm & save'}
           </button>
         </div>
       </form>

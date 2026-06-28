@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
 
 import Modal from '../../components/Modal/Modal';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { proposeSwap } from '../../api/crewLeads';
 import type { Passenger } from '../../types';
 
 const fieldLabel = 'flex flex-col gap-1.5 text-[0.8rem] text-[#9fb3d8]';
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 interface Props {
   demotable: Passenger[]; // crew leads who can be demoted (excludes self)
@@ -22,8 +22,7 @@ export default function ProposeSwapButton({ demotable, passengers, onProposed }:
   const [open, setOpen] = useState(false);
   const [demoteId, setDemoteId] = useState('');
   const [promoteId, setPromoteId] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run, setError } = useAsyncAction();
 
   function openModal() {
     setDemoteId('');
@@ -35,17 +34,11 @@ export default function ProposeSwapButton({ demotable, passengers, onProposed }:
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!demoteId || !promoteId) return;
-    setSubmitting(true);
-    setError(null);
-    try {
+    await run(async () => {
       await proposeSwap(demoteId, promoteId);
       setOpen(false);
       onProposed();
-    } catch (e) {
-      setError(errMsg(e));
-    } finally {
-      setSubmitting(false);
-    }
+    });
   }
 
   return (
@@ -97,8 +90,8 @@ export default function ProposeSwapButton({ demotable, passengers, onProposed }:
               <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>
                 Cancel
               </button>
-              <button type="submit" className="btn" disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Propose swap'}
+              <button type="submit" className="btn" disabled={busy}>
+                {busy ? 'Submitting…' : 'Propose swap'}
               </button>
             </div>
           </form>
