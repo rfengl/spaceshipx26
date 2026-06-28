@@ -267,11 +267,21 @@ as deliberate engineering choices, not scope drift:
 npm test             # runs the server test suite (node:test via tsx)
 ```
 
-Covers repositories, seeding, auth (role derivation), resource & passenger CRUD with role
-enforcement, refill / write-off stock rules, the audit trail (lifecycle logging +
-server-side pagination and filtering), self-service profile with re-auth, the reporting
-endpoints, and the crew-lead swap workflow (propose → approve keeps exactly 3, proposer
-cannot self-approve, passengers cannot propose).
+The suite (run against an in-memory SQLite database) splits into two layers:
+
+**Domain unit tests** — the access-control core, isolated and fast:
+
+- `membership` — tier-inheritance access matrix (Platinum ⊃ Gold ⊃ Silver) and the level
+  guard.
+- `models` — `toPublicUser` never leaks the password hash and leaves its input untouched.
+- `crewLeadService` — the "exactly three crew leads" invariant and separation-of-duties
+  across every propose / approve / reject branch.
+
+**Route integration tests** — repositories, seeding, auth (role derivation), resource &
+passenger CRUD with role enforcement, refill / write-off stock rules, the audit trail
+(lifecycle logging + server-side pagination and filtering), self-service profile with
+re-auth, the reporting endpoints, and the crew-lead swap workflow (propose → approve keeps
+exactly 3, proposer cannot self-approve, passengers cannot propose).
 
 ## AI usage disclosure
 
