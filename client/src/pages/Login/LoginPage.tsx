@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 
 import { login } from '../../api/auth';
 import type { AuthUser } from '../../types';
-import PortHole from './PortHole';
 
 interface Props {
   onAuthenticated: (user: AuthUser) => void;
@@ -52,10 +51,7 @@ export default function LoginPage({ onAuthenticated }: Props) {
 
   return (
     <div className="grid min-h-screen place-items-center px-4 py-8 bg-[radial-gradient(120%_80%_at_50%_-10%,#243049_0%,#0c1018_55%,#05070d_100%)]">
-      <div className="grid w-[min(760px,100%)] grid-cols-1 items-center gap-6 rounded-[22px] border border-[rgba(140,170,220,0.18)] bg-[linear-gradient(160deg,rgba(40,52,76,0.65),rgba(12,16,26,0.85))] px-8 py-7 shadow-[0_30px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md md:grid-cols-[240px_1fr] md:gap-10">
-        {/* The window: looking out into the universe (bespoke art component) */}
-        <PortHole />
-
+      <div className="w-[min(560px,100%)] grid-cols-1 items-center gap-6 rounded-[22px] border border-[rgba(140,170,220,0.18)] bg-[linear-gradient(160deg,rgba(40,52,76,0.65),rgba(12,16,26,0.85))] px-8 py-7 shadow-[0_30px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
         {/* The console: login controls (Tailwind utilities) */}
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <div className="mb-1 flex items-center gap-3.5">

@@ -5,8 +5,8 @@ passengers and onboard resources, passengers consume the resources their members
 tier permits, and **every change streams to connected clients in real time** over a
 WebSocket — no refresh, no polling.
 
-- **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS — a spaceship-cockpit
-  login, then role-aware dashboards: **Resources**, **Passengers**, **Crew Leads**,
+- **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS — a login, then
+  role-aware dashboards: **Resources**, **Passengers**, **Crew Leads**,
   **Audit trail**, **Reports**, plus a passenger view with personal **history**.
 - **Backend:** Node.js + Express 4 + TypeScript, **SQLite** (`better-sqlite3`) behind
   repository interfaces, JWT auth with bcrypt-hashed passwords, and a **WebSocket hub**
@@ -122,7 +122,7 @@ self-censor.
 ```
 client/src/
   pages/
-    Login/                 cockpit login
+    Login/                 login
     Dashboard/             crew home (live "lowest stock" panel)
     PassengerDashboard/    passenger home (tier-filtered, live)
     Resources/             crew CRUD + refill / write-off / (de)commission modals
