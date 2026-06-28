@@ -8,6 +8,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    // Tests live in a top-level test/ folder (mirroring src/), kept out of the
+    // build like the server's test/ directory.
+    include: ['test/**/*.test.{ts,tsx}'],
   },
 });
