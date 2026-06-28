@@ -23,17 +23,10 @@ import {
   deleteResource,
   getResourceDemand,
 } from '../../api/resources';
-import { TIER_RANK, type Resource } from '../../types';
+import type { Resource } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
 import { errorMessage } from '../../utils/errorMessage';
-
-type SortKey =
-  | 'name'
-  | 'minLevel'
-  | 'remainingQty'
-  | 'status'
-  | 'highDemand'
-  | 'shortages';
+import { sortResources, type SortKey } from './sortResources';
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'name', label: 'Name' },
@@ -43,39 +36,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'highDemand', label: 'High demand' },
   { value: 'shortages', label: 'Shortages' },
 ];
-
-// Remaining-stock ratio, used by the shortages sort.
-const stockRatio = (r: Resource) => (r.maxQty > 0 ? r.remainingQty / r.maxQty : 0);
-
-// Order resources by the chosen column and direction. Pure and module-level so
-// the comparator is easy to reason about and unit-test on its own.
-function sortResources(
-  list: Resource[],
-  key: SortKey,
-  dir: 'asc' | 'desc',
-  demand: Record<string, number>,
-): Resource[] {
-  const sign = dir === 'asc' ? 1 : -1;
-  return [...list].sort((a, b) => {
-    switch (key) {
-      case 'minLevel':
-        return (TIER_RANK[a.minLevel] - TIER_RANK[b.minLevel]) * sign;
-      case 'remainingQty':
-        return (a.remainingQty - b.remainingQty) * sign;
-      case 'status':
-        // In-service first when ascending.
-        return (Number(a.isDecommissioned) - Number(b.isDecommissioned)) * sign;
-      case 'highDemand':
-        // Most-used first when ascending.
-        return ((demand[b.id] ?? 0) - (demand[a.id] ?? 0)) * sign;
-      case 'shortages':
-        // Most-depleted (lowest stock ratio) first when ascending.
-        return (stockRatio(a) - stockRatio(b)) * sign;
-      default:
-        return a.name.localeCompare(b.name) * sign;
-    }
-  });
-}
 
 export default function ResourcesPage() {
   const { user } = useAuth();
