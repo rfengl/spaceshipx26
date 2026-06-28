@@ -267,21 +267,30 @@ as deliberate engineering choices, not scope drift:
 npm test             # runs the server test suite (node:test via tsx)
 ```
 
-The suite (run against an in-memory SQLite database) splits into two layers:
+The suite (run against an in-memory SQLite database) splits into three layers:
 
 **Domain unit tests** — the access-control core, isolated and fast:
 
 - `membership` — tier-inheritance access matrix (Platinum ⊃ Gold ⊃ Silver) and the level
   guard.
 - `models` — `toPublicUser` never leaks the password hash and leaves its input untouched.
+
+**Application-service unit tests** — each use-case service exercised directly, without HTTP:
+
+- `authService` — role derivation from `is_crew_lead`, password verification.
 - `crewLeadService` — the "exactly three crew leads" invariant and separation-of-duties
   across every propose / approve / reject branch.
+- `usageService` — Level-2 real-time validation: tier-gated discovery and use, out-of-stock
+  and decommissioned rejection, stock decrement with an audit entry, high-demand and
+  shortage ordering.
+- `inventoryService` — refill capped at the maximum, write-off bounded by remaining stock,
+  decommission guards, and the REFILL / WRITE_OFF audit records.
 
-**Route integration tests** — repositories, seeding, auth (role derivation), resource &
-passenger CRUD with role enforcement, refill / write-off stock rules, the audit trail
-(lifecycle logging + server-side pagination and filtering), self-service profile with
-re-auth, the reporting endpoints, and the crew-lead swap workflow (propose → approve keeps
-exactly 3, proposer cannot self-approve, passengers cannot propose).
+**Route integration tests** — repositories, seeding, auth, resource & passenger CRUD with
+role enforcement, refill / write-off stock rules, the audit trail (lifecycle logging +
+server-side pagination and filtering), self-service profile with re-auth, the reporting
+endpoints, and the crew-lead swap workflow (propose → approve keeps exactly 3, proposer
+cannot self-approve, passengers cannot propose).
 
 ## AI usage disclosure
 
