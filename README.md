@@ -289,17 +289,40 @@ in-memory SQLite database and splits into three layers:
 - `inventoryService` — refill capped at the maximum, write-off bounded by remaining stock,
   decommission guards, and the REFILL / WRITE_OFF audit records.
 
+**Security-adapter unit tests** — the auth primitives behind every request:
+
+- `jwtTokenService` — sign/verify round-trip, plus rejection of tampered, wrong-secret,
+  malformed, and expired tokens.
+- `bcryptPasswordHasher` — hashes are salted (never the plaintext, differ each time) yet
+  verify against the original password.
+
 **Route integration tests** — repositories, seeding, auth, resource & passenger CRUD with
 role enforcement, refill / write-off stock rules, the audit trail (lifecycle logging +
 server-side pagination and filtering), self-service profile with re-auth, the reporting
 endpoints, and the crew-lead swap workflow (propose → approve keeps exactly 3, proposer
 cannot self-approve, passengers cannot propose).
 
-On the **client** (Vitest + Testing Library, jsdom) the focus is the reusable logic rather
-than every screen: the `usePagination` hook (client/server modes, page clamping, reset on
-filter or page-size change), the `Pagination` component (navigation, disabled edges,
-single-page collapse), and the `sameResource` equality helper. Page components are left to
-manual/visual verification; the effort is concentrated on the server domain, per the brief.
+On the **client** (Vitest + Testing Library, jsdom) the tests are behavioural rather than a
+sweep of isolated component units — each asserts a real requirement:
+
+- role-based route guards — the full matrix: a crew lead reaches crew-only pages and is
+  redirected away from passenger-only ones, and vice-versa (`RequireCrew` /
+  `RequirePassenger`).
+- `ResourceActions` — the crew controls enforce stock rules in the UI: refill is disabled
+  for a full or decommissioned resource, write-off is disabled when empty, and the toggle
+  reads Decommission / Recommission by state.
+- `apiFetch` — the client auth boundary: the JWT is attached as a Bearer token, and a 401
+  on an authenticated request clears the session and bounces to login.
+- session helpers (`api/auth`) — `loadStoredUser` survives a missing or corrupt stored
+  value (returns null instead of crashing the app boot); `login` / `logout` persist and
+  clear the token + user.
+- `RefillModal` / `WriteOffModal` — the amount is clamped to a valid range (never below 1,
+  never above the available room for refill or the remaining stock for write-off); "Fill to
+  max" tops a refill up, and the write-off reason defaults and switches.
+
+The remaining screens are left to manual/visual verification; the effort is concentrated on
+the server domain, per the brief. Client tests live in `client/test/` (mirroring `src/`),
+kept out of the build like the server's `test/` folder.
 
 ## AI usage disclosure
 
