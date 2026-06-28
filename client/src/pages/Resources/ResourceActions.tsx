@@ -1,13 +1,16 @@
 import type { Resource } from '../../types';
 
-interface ResourceActionsProps {
-  resource: Resource;
-  className?: string;
+export interface ResourceActionHandlers {
   onRefill: (r: Resource) => void;
   onWriteOff: (r: Resource) => void;
   onEdit: (r: Resource) => void;
   onToggleDecommission: (r: Resource) => void;
   onDelete: (r: Resource) => void;
+}
+
+interface ResourceActionsProps extends ResourceActionHandlers {
+  resource: Resource;
+  className?: string;
 }
 
 const btn =

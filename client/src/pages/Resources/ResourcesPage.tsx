@@ -10,7 +10,9 @@ import { sameResource } from '../../utils/sameResource';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
 import SearchInput from '../../components/SearchInput';
 import Pagination from '../../components/Pagination';
-import ResourceActions from './ResourceActions';
+import ResourceTable from './ResourceTable';
+import ResourceCards from './ResourceCards';
+import { type ResourceActionHandlers } from './ResourceActions';
 import ProvisionResourceButton from './ProvisionResourceButton';
 import ResourceFormModal from './ResourceFormModal';
 import RefillModal from './RefillModal';
@@ -42,31 +44,38 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'shortages', label: 'Shortages' },
 ];
 
-// Colour cards by remaining stock so the worst shortages stand out.
-function stockCard(remaining: number, max: number) {
-  const ratio = max > 0 ? remaining / max : 0;
-  if (ratio < 1 / 3) return 'border-[rgba(255,99,99,0.5)] bg-[rgba(255,80,80,0.12)]';
-  if (ratio < 0.5) return 'border-[rgba(255,200,80,0.5)] bg-[rgba(255,200,80,0.11)]';
-  return 'border-white/[0.08] bg-white/[0.04]';
-}
-
-// Shortage hint as a cell background (matching the card view). Set on the cells
-// rather than the <tr> because a row background paints unreliably under
-// border-collapse.
-function stockRowBg(remaining: number, max: number) {
-  const ratio = max > 0 ? remaining / max : 0;
-  if (ratio < 1 / 3) return '[&>td]:bg-[rgba(255,80,80,0.12)]';
-  if (ratio < 0.5) return '[&>td]:bg-[rgba(255,200,80,0.1)]';
-  return '';
-}
-
-// The focused row (arrived-at from a dashboard shortage card) gets a coloured
-// left-edge border, kept separate from the shortage background so both show.
-const FOCUS_ACCENT =
-  '[&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-[#5ad0ff]';
-
-// Remaining-stock ratio (module-level so it stays stable for the sort memo).
+// Remaining-stock ratio, used by the shortages sort.
 const stockRatio = (r: Resource) => (r.maxQty > 0 ? r.remainingQty / r.maxQty : 0);
+
+// Order resources by the chosen column and direction. Pure and module-level so
+// the comparator is easy to reason about and unit-test on its own.
+function sortResources(
+  list: Resource[],
+  key: SortKey,
+  dir: 'asc' | 'desc',
+  demand: Record<string, number>,
+): Resource[] {
+  const sign = dir === 'asc' ? 1 : -1;
+  return [...list].sort((a, b) => {
+    switch (key) {
+      case 'minLevel':
+        return (TIER_RANK[a.minLevel] - TIER_RANK[b.minLevel]) * sign;
+      case 'remainingQty':
+        return (a.remainingQty - b.remainingQty) * sign;
+      case 'status':
+        // In-service first when ascending.
+        return (Number(a.isDecommissioned) - Number(b.isDecommissioned)) * sign;
+      case 'highDemand':
+        // Most-used first when ascending.
+        return ((demand[b.id] ?? 0) - (demand[a.id] ?? 0)) * sign;
+      case 'shortages':
+        // Most-depleted (lowest stock ratio) first when ascending.
+        return (stockRatio(a) - stockRatio(b)) * sign;
+      default:
+        return a.name.localeCompare(b.name) * sign;
+    }
+  });
+}
 
 export default function ResourcesPage() {
   const { user } = useAuth();
@@ -194,33 +203,24 @@ export default function ResourcesPage() {
     );
   }, [resources, query]);
 
-  const sorted = useMemo(() => {
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      switch (sortKey) {
-        case 'minLevel':
-          return (TIER_RANK[a.minLevel] - TIER_RANK[b.minLevel]) * dir;
-        case 'remainingQty':
-          return (a.remainingQty - b.remainingQty) * dir;
-        case 'status':
-          // In-service first when ascending.
-          return (Number(a.isDecommissioned) - Number(b.isDecommissioned)) * dir;
-        case 'highDemand':
-          // Most-used first when ascending.
-          return ((demand[b.id] ?? 0) - (demand[a.id] ?? 0)) * dir;
-        case 'shortages':
-          // Most-depleted (lowest stock ratio) first when ascending.
-          return (stockRatio(a) - stockRatio(b)) * dir;
-        default:
-          return a.name.localeCompare(b.name) * dir;
-      }
-    });
-  }, [filtered, sortKey, sortDir, demand]);
+  const sorted = useMemo(
+    () => sortResources(filtered, sortKey, sortDir, demand),
+    [filtered, sortKey, sortDir, demand],
+  );
 
   const { pageItems, ...paging } = usePagination(sorted, {
     storageKey: 'resources.pageSize',
     resetKey: `${query}|${sortKey}|${sortDir}`,
   });
+
+  // Crew action handlers, shared by the table and card views.
+  const actions: ResourceActionHandlers = {
+    onRefill: setRefilling,
+    onWriteOff: setWritingOff,
+    onEdit: setEditing,
+    onToggleDecommission: (r) => void toggleDecommission(r),
+    onDelete: setDeleting,
+  };
 
   return (
     <>
@@ -286,111 +286,21 @@ export default function ResourcesPage() {
             ) : (
               <>
                 {isDesktop ? (
-                  <table className="data-table mt-4">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Min tier</th>
-                        <th className="num">Stock</th>
-                        <th>Status</th>
-                        {isCrew && <th aria-label="Actions" />}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pageItems.map((r) => {
-                        const focused = r.id === focusId;
-                        return (
-                          <tr
-                            key={r.id}
-                            ref={focused ? setFocusRef : undefined}
-                            className={`${focused ? FOCUS_ACCENT : ''} ${stockRowBg(
-                              r.remainingQty,
-                              r.maxQty,
-                            )}`}
-                          >
-                            <td data-label="Name">{r.name}</td>
-                            <td data-label="Min tier">
-                              <span className={`tier tier-${r.minLevel}`}>
-                                {r.minLevel}
-                              </span>
-                            </td>
-                            <td className="num" data-label="Stock">
-                              {r.remainingQty} / {r.maxQty}
-                            </td>
-                            <td data-label="Status">
-                              {r.isDecommissioned ? 'Decommissioned' : 'Active'}
-                            </td>
-                            {isCrew && (
-                              <td data-label="Actions">
-                                <ResourceActions
-                                  resource={r}
-                                  onRefill={setRefilling}
-                                  onWriteOff={setWritingOff}
-                                  onEdit={setEditing}
-                                  onToggleDecommission={(x) => void toggleDecommission(x)}
-                                  onDelete={setDeleting}
-                                />
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <ResourceTable
+                    items={pageItems}
+                    isCrew={isCrew}
+                    focusId={focusId}
+                    setFocusRef={setFocusRef}
+                    {...actions}
+                  />
                 ) : (
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {pageItems.map((r) => {
-                      const focused = r.id === focusId;
-                      return (
-                        <div
-                          key={r.id}
-                          ref={focused ? setFocusRef : undefined}
-                          className={`flex flex-col gap-2 rounded-xl border p-5 transition ${stockCard(
-                            r.remainingQty,
-                            r.maxQty,
-                          )} ${focused ? 'ring-2 ring-[#5ad0ff]' : ''}`}
-                        >
-                          {/* Dim only the info when decommissioned — the action
-                            buttons (esp. Recommission) stay fully clickable. */}
-                          <div
-                            className={`flex flex-col gap-2 ${
-                              r.isDecommissioned ? 'opacity-60' : ''
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="m-0 text-[1.05rem]">{r.name}</h3>
-                              <span className={`tier tier-${r.minLevel}`}>
-                                {r.minLevel}
-                              </span>
-                            </div>
-                            <div className="flex items-baseline justify-between gap-2">
-                              <p className="m-0 text-[0.9rem] text-[#9fb3d8]">
-                                <strong className="text-[1.05rem] text-[#e8eefc]">
-                                  {r.remainingQty}
-                                </strong>{' '}
-                                / {r.maxQty} in stock
-                              </p>
-                              <span className="text-[0.8rem] text-[#9fb3d8]">
-                                {r.isDecommissioned ? 'Decommissioned' : 'Active'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {isCrew && (
-                            <ResourceActions
-                              resource={r}
-                              className="mt-auto pt-2"
-                              onRefill={setRefilling}
-                              onWriteOff={setWritingOff}
-                              onEdit={setEditing}
-                              onToggleDecommission={(x) => void toggleDecommission(x)}
-                              onDelete={setDeleting}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <ResourceCards
+                    items={pageItems}
+                    isCrew={isCrew}
+                    focusId={focusId}
+                    setFocusRef={setFocusRef}
+                    {...actions}
+                  />
                 )}
 
                 <Pagination {...paging} />
