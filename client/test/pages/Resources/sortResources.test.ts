@@ -43,4 +43,17 @@ describe('sortResources', () => {
       'a',
     ]);
   });
+
+  it('breaks ties by name so the order is deterministic', () => {
+    // Same remaining stock — the result must fall back to name order,
+    // independent of the order the items came in.
+    const list = [
+      make({ id: 'z', name: 'Zulu', remainingQty: 5 }),
+      make({ id: 'a', name: 'Alpha', remainingQty: 5 }),
+    ];
+    expect(names(sortResources(list, 'remainingQty', 'asc', {}))).toEqual([
+      'Alpha',
+      'Zulu',
+    ]);
+  });
 });
