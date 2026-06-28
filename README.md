@@ -264,10 +264,13 @@ as deliberate engineering choices, not scope drift:
 ## Tests
 
 ```bash
-npm test             # runs the server test suite (node:test via tsx)
+npm test             # server (node:test) + client (Vitest)
+npm run test:server  # server only
+npm run test:client  # client only
 ```
 
-The suite (run against an in-memory SQLite database) splits into three layers:
+The bulk of the testing is on the server, where the domain lives. It runs against an
+in-memory SQLite database and splits into three layers:
 
 **Domain unit tests** — the access-control core, isolated and fast:
 
@@ -291,6 +294,12 @@ role enforcement, refill / write-off stock rules, the audit trail (lifecycle log
 server-side pagination and filtering), self-service profile with re-auth, the reporting
 endpoints, and the crew-lead swap workflow (propose → approve keeps exactly 3, proposer
 cannot self-approve, passengers cannot propose).
+
+On the **client** (Vitest + Testing Library, jsdom) the focus is the reusable logic rather
+than every screen: the `usePagination` hook (client/server modes, page clamping, reset on
+filter or page-size change), the `Pagination` component (navigation, disabled edges,
+single-page collapse), and the `sameResource` equality helper. Page components are left to
+manual/visual verification; the effort is concentrated on the server domain, per the brief.
 
 ## AI usage disclosure
 
