@@ -8,10 +8,18 @@ import type {
   AuditTrailRepository,
 } from '../domain/ports/auditTrailRepository.js';
 import type { ReportingRepository } from '../domain/ports/reportingRepository.js';
+import type { ResourceRepository } from '../domain/ports/resourceRepository.js';
+import type { HttpError } from '../types.js';
 
 // A trimmed query-string value, or undefined when absent/blank.
 const queryString = (v: unknown): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim() : undefined;
+
+const notFound = (): HttpError => {
+  const err: HttpError = new Error('Resource not found');
+  err.status = 404;
+  return err;
+};
 
 /**
  * Crew-lead analytics. Exposes the highest-demand resources, the resources
@@ -22,10 +30,29 @@ export function createReportsRouter(
   usage: UsageService,
   audit: AuditTrailRepository,
   reporting: ReportingRepository,
+  resources: ResourceRepository,
   authenticate: RequestHandler,
 ): Router {
   const router = Router();
   router.use(authenticate, requireRole('CREW_LEAD'));
+
+  // Per-resource usage analytics: a daily-usage series plus a by-tier breakdown,
+  // for the resource trend view. Bundles the resource so the page has its header.
+  router.get(
+    '/resources/:id/usage',
+    asyncHandler(async (req, res) => {
+      const resource = resources.findById(req.params.id);
+      if (!resource || !resource.active) throw notFound();
+      const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
+      res.json({
+        data: {
+          resource,
+          daily: reporting.dailyUsage(resource.id, days),
+          byTier: reporting.usageByTier(resource.id),
+        },
+      });
+    }),
+  );
 
   router.get(
     '/high-demand',
