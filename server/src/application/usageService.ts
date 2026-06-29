@@ -30,10 +30,14 @@ export class UsageService {
 
   /** The most-used resources (highest demand first). */
   highDemand(limit: number): DemandItem[] {
-    return this.audit
-      .topUsed(limit)
+    const ranked = this.audit.topUsed(limit);
+    // One batched lookup for the ranked ids instead of a findById per row (N+1).
+    const byId = new Map(
+      this.resources.findByIds(ranked.map((r) => r.resourceId)).map((r) => [r.id, r]),
+    );
+    return ranked
       .map((d) => {
-        const resource = this.resources.findById(d.resourceId);
+        const resource = byId.get(d.resourceId);
         return resource ? { resource, uses: d.uses } : null;
       })
       .filter((item): item is DemandItem => item !== null);

@@ -68,6 +68,16 @@ export class SqliteResourceRepository implements ResourceRepository {
     return row ? toModel(row) : null;
   }
 
+  // Batch lookup (one query) so callers ranking by id don't fan out into N+1.
+  findByIds(ids: string[]): Resource[] {
+    if (ids.length === 0) return [];
+    const placeholders = ids.map(() => '?').join(', ');
+    const rows = this.db
+      .prepare(`SELECT * FROM resources WHERE id IN (${placeholders})`)
+      .all(...ids) as ResourceRow[];
+    return rows.map(toModel);
+  }
+
   // Non-deleted resources (active = 1), including decommissioned ones (flagged).
   findAll(): Resource[] {
     const rows = this.db

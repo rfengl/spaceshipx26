@@ -11,6 +11,8 @@ export interface ResourceUpdate {
 export interface ResourceRepository {
   create(input: NewResource): Resource;
   findById(id: string): Resource | null;
+  /** Batch lookup by id (one query) — avoids N+1 when resolving a ranked set. */
+  findByIds(ids: string[]): Resource[];
   /** Non-deleted resources (active), including decommissioned ones. */
   findAll(): Resource[];
   /** Non-deleted resources still in service (not decommissioned). */
