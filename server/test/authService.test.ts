@@ -76,3 +76,20 @@ test('login rejects an unknown user with 401', async () => {
     return true;
   });
 });
+
+test('login still runs a password comparison for an unknown user (no timing oracle)', async () => {
+  let compareCalls = 0;
+  const countingHasher: PasswordHasher = {
+    hash: async (plain) => `hashed:${plain}`,
+    compare: async (plain, hash) => {
+      compareCalls += 1;
+      return hash === `hashed:${plain}`;
+    },
+  };
+  const svc = new AuthService(users, countingHasher, fakeTokens);
+
+  await assert.rejects(svc.login('ghost', 'pw'));
+  // The comparison runs against a dummy hash, so a missing username costs the
+  // same as a wrong password and can't be distinguished by response time.
+  assert.equal(compareCalls, 1);
+});

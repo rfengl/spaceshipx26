@@ -8,6 +8,20 @@ const parseOrigins = (value: string | undefined): string | string[] => {
     .filter(Boolean);
 };
 
+const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+
+// The dev fallback is convenient locally but forgeable (it's public, in-repo),
+// so refuse to boot in production without a real secret rather than signing
+// tokens with a known key.
+const resolveJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (isProduction) {
+    throw new Error('JWT_SECRET must be set in production');
+  }
+  return 'dev-insecure-secret-change-me';
+};
+
 export interface Config {
   env: string;
   isProduction: boolean;
@@ -21,7 +35,7 @@ export interface Config {
 
 const config: Config = {
   env: process.env.NODE_ENV || 'development',
-  isProduction: (process.env.NODE_ENV || 'development') === 'production',
+  isProduction,
   port: Number(process.env.PORT) || 3000,
   host: process.env.HOST || '0.0.0.0',
   cors: {
@@ -36,8 +50,7 @@ const config: Config = {
     path: process.env.DB_PATH || 'data/prms.db',
   },
   jwt: {
-    // Override in production via JWT_SECRET.
-    secret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
+    secret: resolveJwtSecret(),
     expiresIn: process.env.JWT_EXPIRES_IN || '1h',
   },
 };

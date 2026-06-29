@@ -11,6 +11,11 @@ export interface LoginResult {
 
 const invalidCredentials = () => unauthorized('Invalid username or password');
 
+// A valid bcrypt hash (cost 10) to compare against when no user is found, so a
+// missing username costs the same as a wrong password — no timing oracle for
+// enumerating valid usernames.
+const DUMMY_HASH = '$2b$10$Or8FEIhGsppQmxsMTc.ly.IiY4ydPFhemqYtFG.5ZfnBhDLzGt.eO';
+
 export class AuthService {
   constructor(
     private readonly users: UserRepository,
@@ -20,9 +25,10 @@ export class AuthService {
 
   async login(username: string, password: string): Promise<LoginResult> {
     const user = this.users.findByUsername(username);
-    // Always run a comparison-shaped path to avoid leaking which usernames
-    // exist via timing, then fail uniformly.
-    const ok = user ? await this.hasher.compare(password, user.passwordHash) : false;
+    // Always run a real bcrypt comparison — against the stored hash, or a dummy
+    // of equal cost when the username doesn't exist — so timing doesn't reveal
+    // which usernames are valid. Then fail uniformly.
+    const ok = await this.hasher.compare(password, user?.passwordHash ?? DUMMY_HASH);
     // A soft-deleted (inactive) account is treated as if it does not exist.
     if (!user || !ok || !user.active) {
       throw invalidCredentials();
