@@ -175,4 +175,36 @@ export function seedAuditTrail(
       }
     }
   }
+
+  // Leave a deliberate demo spread of shortages: two resources critically low
+  // (< 1/3 of capacity) and two low (< 1/2), the rest fully stocked. Each one is
+  // topped up then drawn back down by recent use, so stock and trail agree.
+  const SHORTAGES: { name: string; target: number }[] = [
+    { name: 'Luxury Oxygen Pod', target: 2 }, // 2/8  ≈ 0.25  (critical)
+    { name: 'Advanced Medical Bay', target: 1 }, // 1/5 = 0.20  (critical)
+    { name: 'Private Cabin', target: 4 }, // 4/10 = 0.40  (low)
+    { name: 'Basic Hygiene Pod', target: 13 }, // 13/30 ≈ 0.43  (low)
+  ];
+  const sweepCrew = crewIds[0];
+  const short = new Set(SHORTAGES.map((s) => s.name));
+
+  // Everything else ends comfortably stocked.
+  for (const r of resources) {
+    if (!short.has(r.name) && r.remaining < r.maxQty) {
+      recordRefill(sweepCrew, r, timeAt(base, 6) ?? now);
+    }
+  }
+
+  // Draw the shortage resources down to their targets over the last few days.
+  for (const s of SHORTAGES) {
+    const r = byName.get(s.name);
+    if (!r) continue;
+    if (r.remaining < r.maxQty)
+      recordRefill(sweepCrew, r, timeAt(base - 6 * DAY_MS, 6) ?? now);
+    const patients = eligible(r);
+    for (let i = 0; r.remaining > s.target && patients.length; i += 1) {
+      const p = patients[Math.floor(rng() * patients.length)];
+      recordUse(p, r, timeAt(base - (i % 6) * DAY_MS, 9 + (i % 10)) ?? now);
+    }
+  }
 }
