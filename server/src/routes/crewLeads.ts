@@ -3,13 +3,7 @@ import { Router, type RequestHandler } from 'express';
 import asyncHandler from '../utils/asyncHandler.js';
 import { requireRole } from '../middleware/auth.js';
 import type { CrewLeadService } from '../application/crewLeadService.js';
-import type { HttpError } from '../types.js';
-
-const badRequest = (message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = 400;
-  return err;
-};
+import { badRequest } from '../utils/httpError.js';
 
 export function createCrewLeadsRouter(
   service: CrewLeadService,

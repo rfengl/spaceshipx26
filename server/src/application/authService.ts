@@ -2,18 +2,14 @@ import type { AuthUser } from '../domain/models.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import type { TokenService } from '../domain/ports/tokenService.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
-import type { HttpError } from '../types.js';
+import { unauthorized } from '../utils/httpError.js';
 
 export interface LoginResult {
   token: string;
   user: AuthUser;
 }
 
-const invalidCredentials = (): HttpError => {
-  const err: HttpError = new Error('Invalid username or password');
-  err.status = 401;
-  return err;
-};
+const invalidCredentials = () => unauthorized('Invalid username or password');
 
 export class AuthService {
   constructor(

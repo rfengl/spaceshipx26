@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { getShortages } from '../../api/resources';
 import { useResourceSocket } from '../../hooks/useResourceSocket';
+import { stockCard } from '../../utils/stockTone';
 import type { Resource } from '../../types';
 
 const NAV_ITEMS = [
@@ -43,14 +44,6 @@ const NAV_ITEMS = [
     description: 'Per-resource usage trend, tier breakdown, and recent activity.',
   },
 ];
-
-// Colour cards by remaining stock so the worst shortages stand out.
-function stockCard(remaining: number, max: number) {
-  const ratio = max > 0 ? remaining / max : 0;
-  if (ratio < 1 / 3) return 'border-[rgba(255,99,99,0.5)] bg-[rgba(255,80,80,0.12)]';
-  if (ratio < 0.5) return 'border-[rgba(255,200,80,0.5)] bg-[rgba(255,200,80,0.11)]';
-  return 'border-white/[0.08] bg-white/[0.04]';
-}
 
 export default function Dashboard() {
   const [shortages, setShortages] = useState<Resource[]>([]);

@@ -4,13 +4,7 @@ import type { Resource } from '../domain/models.js';
 import type { ResourceRepository } from '../domain/ports/resourceRepository.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
-import type { HttpError } from '../types.js';
-
-const httpError = (status: number, message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = status;
-  return err;
-};
+import { conflict, forbidden, notFound, unauthorized } from '../utils/httpError.js';
 
 export interface UseResult {
   resource: Resource;
@@ -61,7 +55,7 @@ export class UsageService {
    */
   listAvailable(userId: string): Resource[] {
     const user = this.users.findById(userId);
-    if (!user) throw httpError(401, 'Account no longer exists');
+    if (!user) throw unauthorized('Account no longer exists');
     return this.resources
       .findAll()
       .filter((r) => hasAccess(user.membershipLevel, r.minLevel));
@@ -70,22 +64,21 @@ export class UsageService {
   /** Record a use: validate, decrement one unit, and write an audit log. */
   use(userId: string, resourceId: string): UseResult {
     const user = this.users.findById(userId);
-    if (!user) throw httpError(401, 'Account no longer exists');
+    if (!user) throw unauthorized('Account no longer exists');
 
     const resource = this.resources.findById(resourceId);
-    if (!resource || !resource.active) throw httpError(404, 'Resource not found');
-    if (resource.isDecommissioned)
-      throw httpError(409, 'This resource is no longer available');
+    if (!resource || !resource.active) throw notFound('Resource not found');
+    if (resource.isDecommissioned) throw conflict('This resource is no longer available');
     if (!hasAccess(user.membershipLevel, resource.minLevel)) {
-      throw httpError(403, 'Your membership tier cannot access this resource');
+      throw forbidden('Your membership tier cannot access this resource');
     }
     if (resource.remainingQty <= 0) {
-      throw httpError(409, 'This resource is out of stock');
+      throw conflict('This resource is out of stock');
     }
 
     const apply = this.db.transaction((): UseResult => {
       const updated = this.resources.decrementRemaining(resourceId);
-      if (!updated) throw httpError(409, 'This resource is out of stock');
+      if (!updated) throw conflict('This resource is out of stock');
       this.audit.record({ userId, resourceId, action: 'USE', amount: 1 });
       return { resource: updated };
     });

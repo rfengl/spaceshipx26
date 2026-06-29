@@ -9,17 +9,11 @@ import type {
 } from '../domain/ports/auditTrailRepository.js';
 import type { ReportingRepository } from '../domain/ports/reportingRepository.js';
 import type { ResourceRepository } from '../domain/ports/resourceRepository.js';
-import type { HttpError } from '../types.js';
+import { notFound } from '../utils/httpError.js';
 
 // A trimmed query-string value, or undefined when absent/blank.
 const queryString = (v: unknown): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim() : undefined;
-
-const notFound = (): HttpError => {
-  const err: HttpError = new Error('Resource not found');
-  err.status = 404;
-  return err;
-};
 
 /**
  * Crew-lead analytics. Exposes the highest-demand resources, the resources
@@ -42,7 +36,7 @@ export function createReportsRouter(
     '/resources/:id/usage',
     asyncHandler(async (req, res) => {
       const resource = resources.findById(req.params.id);
-      if (!resource || !resource.active) throw notFound();
+      if (!resource || !resource.active) throw notFound('Resource not found');
       const days = Math.min(90, Math.max(1, Number(req.query.days) || 30));
       res.json({
         data: {

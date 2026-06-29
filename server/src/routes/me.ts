@@ -7,13 +7,7 @@ import type { UserRepository } from '../domain/ports/userRepository.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import type { ResourcePublisher } from '../domain/ports/resourcePublisher.js';
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
-import type { HttpError } from '../types.js';
-
-const httpError = (status: number, message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = status;
-  return err;
-};
+import { badRequest, conflict, unauthorized } from '../utils/httpError.js';
 
 interface ProfileInput {
   name?: string;
@@ -28,19 +22,19 @@ function validateProfile(body: unknown): ProfileInput {
   const out: ProfileInput = {};
   if (src.name !== undefined) {
     if (typeof src.name !== 'string' || !src.name.trim()) {
-      throw httpError(400, '`name` must be a non-empty string');
+      throw badRequest('`name` must be a non-empty string');
     }
     out.name = src.name.trim();
   }
   if (src.username !== undefined) {
     if (typeof src.username !== 'string' || !src.username.trim()) {
-      throw httpError(400, '`username` must be a non-empty string');
+      throw badRequest('`username` must be a non-empty string');
     }
     out.username = src.username.trim().toLowerCase();
   }
   if (src.password !== undefined && src.password !== '') {
     if (typeof src.password !== 'string' || src.password.length < 4) {
-      throw httpError(400, '`password` must be at least 4 characters');
+      throw badRequest('`password` must be at least 4 characters');
     }
     out.password = src.password;
   }
@@ -67,7 +61,7 @@ export function createMeRouter(
     '/profile',
     asyncHandler(async (req, res) => {
       const me = users.findById(req.user!.id);
-      if (!me) throw httpError(401, 'Account no longer exists');
+      if (!me) throw unauthorized('Account no longer exists');
       res.json({ data: toPublicUser(me) });
     }),
   );
@@ -76,22 +70,22 @@ export function createMeRouter(
     '/profile',
     asyncHandler(async (req, res) => {
       const me = users.findById(req.user!.id);
-      if (!me) throw httpError(401, 'Account no longer exists');
+      if (!me) throw unauthorized('Account no longer exists');
 
       // Re-authenticate: the current access code must be confirmed before any change.
       const currentPassword = (req.body ?? {}).currentPassword;
       if (typeof currentPassword !== 'string' || currentPassword === '') {
-        throw httpError(400, 'Your current access code is required');
+        throw badRequest('Your current access code is required');
       }
       if (!(await hasher.compare(currentPassword, me.passwordHash))) {
-        throw httpError(401, 'Incorrect access code');
+        throw unauthorized('Incorrect access code');
       }
 
       const input = validateProfile(req.body);
       if (input.username && input.username !== me.username) {
         const clash = users.findByUsername(input.username);
         if (clash && clash.id !== me.id) {
-          throw httpError(409, 'That username is already taken');
+          throw conflict('That username is already taken');
         }
       }
 

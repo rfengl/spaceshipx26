@@ -11,19 +11,7 @@ import type {
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 import type { ResourcePublisher } from '../domain/ports/resourcePublisher.js';
 import type { InventoryService } from '../application/inventoryService.js';
-import type { HttpError } from '../types.js';
-
-const badRequest = (message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = 400;
-  return err;
-};
-
-const notFound = (): HttpError => {
-  const err: HttpError = new Error('Resource not found');
-  err.status = 404;
-  return err;
-};
+import { badRequest, notFound } from '../utils/httpError.js';
 
 function validateNew(body: unknown): NewResource {
   const { name, minLevel, maxQty } = (body ?? {}) as Record<string, unknown>;
@@ -102,7 +90,7 @@ export function createResourcesRouter(
     '/:id',
     asyncHandler(async (req, res) => {
       const before = resources.findById(req.params.id);
-      if (!before) throw notFound();
+      if (!before) throw notFound('Resource not found');
       const changes = validateUpdate(req.body);
       // Lowering capacity below the current remaining stock would leave the
       // resource over capacity — reject it (write off the excess first).
@@ -112,7 +100,7 @@ export function createResourcesRouter(
         );
       }
       const updated = resources.update(req.params.id, changes);
-      if (!updated) throw notFound();
+      if (!updated) throw notFound('Resource not found');
 
       // Record a lifecycle event only when the decommission state flips.
       if (
@@ -134,7 +122,7 @@ export function createResourcesRouter(
   router.delete(
     '/:id',
     asyncHandler(async (req, res) => {
-      if (!resources.deactivate(req.params.id)) throw notFound();
+      if (!resources.deactivate(req.params.id)) throw notFound('Resource not found');
       audit.record({
         userId: req.user!.id,
         resourceId: req.params.id,

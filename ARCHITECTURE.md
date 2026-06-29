@@ -255,3 +255,27 @@ added because I thought it was genuinely useful.
 > with an otherwise-valid token. This costs one indexed lookup per request — negligible on
 > local SQLite — in exchange for correct, live permissions, which is the right trade for a
 > governance feature.
+
+## Known limitations & next steps
+
+Honest edges of the current solution, and how I'd address each with more time:
+
+- **WebSocket token in the URL.** Browsers can't set headers on a `WebSocket`, so the JWT
+  rides in the query string (`?token=…`), where it can surface in access logs. Mitigated by
+  the 1-hour expiry and live handshake verification; the production fix is a **short-lived,
+  single-use connect ticket** — an authenticated `POST /api/ws-ticket` returns a ~30s token
+  used only for the handshake — or a cookie-based upgrade so no token touches the URL.
+- **No refresh-token rotation or revocation list.** Logout is client-side, so a stolen token
+  stays valid until expiry (bounded by the 1h TTL; a demoted or deleted account is already
+  rejected because the role is re-read per request). Since that per-request user lookup
+  already happens, the natural next step is a **`token_version` / `valid_after` column**:
+  stamp it into the JWT and reject older tokens — instant "log out everywhere" and
+  password-change invalidation, at no extra query.
+- **Resource edits are last-write-wins.** No optimistic concurrency (version/ETag) on
+  updates — two crew editing the same resource, the later save wins. Stock changes are
+  unaffected: they're atomic at the database (`remaining_qty > 0`).
+- **SQLite, single-writer.** Ideal for a zero-config review; the repository ports make
+  Postgres a drop-in adapter if concurrency or scale demanded it.
+- **Front-end coverage is intentionally shallow** — behavioural tests on the load-bearing
+  logic (route guards, the auth fetch boundary, stock-rule UI) with screens left to manual
+  verification; the testing effort is concentrated on the server domain.

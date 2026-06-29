@@ -2,13 +2,7 @@ import type { DB } from '../db/connection.js';
 import type { Resource } from '../domain/models.js';
 import type { ResourceRepository } from '../domain/ports/resourceRepository.js';
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
-import type { HttpError } from '../types.js';
-
-const httpError = (status: number, message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = status;
-  return err;
-};
+import { notFound, badRequest, conflict } from '../utils/httpError.js';
 
 export interface RefillResult {
   resource: Resource;
@@ -28,25 +22,24 @@ export class InventoryService {
   /** Add `amount` units to a resource's stock, capped at its maximum. */
   refill(userId: string, resourceId: string, amount: number): RefillResult {
     if (!Number.isInteger(amount) || amount <= 0) {
-      throw httpError(400, 'Refill amount must be a positive whole number');
+      throw badRequest('Refill amount must be a positive whole number');
     }
 
     const resource = this.resources.findById(resourceId);
-    if (!resource || !resource.active) throw httpError(404, 'Resource not found');
+    if (!resource || !resource.active) throw notFound('Resource not found');
     if (resource.isDecommissioned) {
-      throw httpError(409, 'This resource is decommissioned and cannot be refilled');
+      throw conflict('This resource is decommissioned and cannot be refilled');
     }
     if (resource.remainingQty + amount > resource.maxQty) {
       const room = resource.maxQty - resource.remainingQty;
-      throw httpError(
-        400,
+      throw badRequest(
         `Refill would exceed the maximum quantity (${resource.maxQty}); at most ${room} more can be added`,
       );
     }
 
     const apply = this.db.transaction((): RefillResult => {
       const updated = this.resources.addRemaining(resourceId, amount);
-      if (!updated) throw httpError(409, 'Refill would exceed the maximum quantity');
+      if (!updated) throw conflict('Refill would exceed the maximum quantity');
       this.audit.record({ userId, resourceId, action: 'REFILL', amount });
       return { resource: updated };
     });
@@ -65,14 +58,13 @@ export class InventoryService {
     reason?: string,
   ): RefillResult {
     if (!Number.isInteger(amount) || amount <= 0) {
-      throw httpError(400, 'Write-off amount must be a positive whole number');
+      throw badRequest('Write-off amount must be a positive whole number');
     }
 
     const resource = this.resources.findById(resourceId);
-    if (!resource || !resource.active) throw httpError(404, 'Resource not found');
+    if (!resource || !resource.active) throw notFound('Resource not found');
     if (amount > resource.remainingQty) {
-      throw httpError(
-        400,
+      throw badRequest(
         `Cannot write off more than the remaining stock (${resource.remainingQty})`,
       );
     }
@@ -80,7 +72,7 @@ export class InventoryService {
     const note = reason?.trim() ? reason.trim() : undefined;
     const apply = this.db.transaction((): RefillResult => {
       const updated = this.resources.removeRemaining(resourceId, amount);
-      if (!updated) throw httpError(409, 'Not enough stock to write off');
+      if (!updated) throw conflict('Not enough stock to write off');
       this.audit.record({ userId, resourceId, action: 'WRITE_OFF', amount, note });
       return { resource: updated };
     });

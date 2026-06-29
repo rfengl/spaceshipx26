@@ -1,13 +1,6 @@
 import ResourceActions, { type ResourceActionHandlers } from './ResourceActions';
 import type { Resource } from '../../types';
-
-// Colour cards by remaining stock so the worst shortages stand out.
-function stockCard(remaining: number, max: number) {
-  const ratio = max > 0 ? remaining / max : 0;
-  if (ratio < 1 / 3) return 'border-[rgba(255,99,99,0.5)] bg-[rgba(255,80,80,0.12)]';
-  if (ratio < 0.5) return 'border-[rgba(255,200,80,0.5)] bg-[rgba(255,200,80,0.11)]';
-  return 'border-white/[0.08] bg-white/[0.04]';
-}
+import { stockCard } from '../../utils/stockTone';
 
 interface Props extends ResourceActionHandlers {
   items: Resource[];

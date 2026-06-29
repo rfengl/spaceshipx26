@@ -6,25 +6,7 @@ import { isMembershipLevel, type MembershipLevel } from '../domain/membership.js
 import { toPublicUser, type UserUpdate } from '../domain/models.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
-import type { HttpError } from '../types.js';
-
-const badRequest = (message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = 400;
-  return err;
-};
-
-const conflict = (message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = 409;
-  return err;
-};
-
-const notFound = (): HttpError => {
-  const err: HttpError = new Error('Passenger not found');
-  err.status = 404;
-  return err;
-};
+import { badRequest, conflict, notFound } from '../utils/httpError.js';
 
 interface NewPassengerInput {
   username: string;
@@ -137,7 +119,7 @@ export function createPassengersRouter(
     '/:id',
     asyncHandler(async (req, res) => {
       const target = users.findById(req.params.id);
-      if (!target) throw notFound();
+      if (!target) throw notFound('Passenger not found');
 
       const input = validateUpdate(req.body);
       if (input.username && input.username !== target.username) {
@@ -167,7 +149,7 @@ export function createPassengersRouter(
     '/:id',
     asyncHandler(async (req, res) => {
       const target = users.findById(req.params.id);
-      if (!target) throw notFound();
+      if (!target) throw notFound('Passenger not found');
       if (target.isCrewLead) {
         throw badRequest('Cannot delete a crew lead here — use the Crew Leads page');
       }

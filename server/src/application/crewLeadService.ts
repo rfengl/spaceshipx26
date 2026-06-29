@@ -3,13 +3,13 @@ import type { ChangeRequest, PublicUser } from '../domain/models.js';
 import { toPublicUser } from '../domain/models.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
 import type { ChangeRequestRepository } from '../domain/ports/changeRequestRepository.js';
-import type { HttpError } from '../types.js';
-
-const httpError = (status: number, message: string): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = status;
-  return err;
-};
+import {
+  badRequest,
+  conflict,
+  forbidden,
+  notFound,
+  serverError,
+} from '../utils/httpError.js';
 
 /**
  * Crew-lead governance. A crew lead proposes swapping a crew lead with a
@@ -34,29 +34,29 @@ export class CrewLeadService {
   propose(proposerId: string, demoteId: string, promoteId: string): ChangeRequest {
     const proposer = this.users.findById(proposerId);
     if (!proposer?.isCrewLead) {
-      throw httpError(403, 'Only crew leads can propose changes');
+      throw forbidden('Only crew leads can propose changes');
     }
     if (demoteId === proposerId) {
-      throw httpError(400, 'You cannot propose to demote yourself');
+      throw badRequest('You cannot propose to demote yourself');
     }
     if (demoteId === promoteId) {
-      throw httpError(400, 'Demote and promote must be different people');
+      throw badRequest('Demote and promote must be different people');
     }
 
     const demote = this.users.findById(demoteId);
     if (!demote?.isCrewLead) {
-      throw httpError(400, 'The person to demote must be a current crew lead');
+      throw badRequest('The person to demote must be a current crew lead');
     }
     const promote = this.users.findById(promoteId);
     if (!promote) {
-      throw httpError(404, 'The passenger to promote was not found');
+      throw notFound('The passenger to promote was not found');
     }
     if (promote.isCrewLead) {
-      throw httpError(400, 'The person to promote is already a crew lead');
+      throw badRequest('The person to promote is already a crew lead');
     }
 
     if (this.requests.findPending().length > 0) {
-      throw httpError(409, 'There is already a pending change request');
+      throw conflict('There is already a pending change request');
     }
 
     return this.requests.create({ proposerId, demoteId, promoteId });
@@ -70,17 +70,17 @@ export class CrewLeadService {
     const demote = this.users.findById(request.demoteId);
     const promote = this.users.findById(request.promoteId);
     if (!demote?.isCrewLead) {
-      throw httpError(409, 'The crew lead to demote is no longer valid');
+      throw conflict('The crew lead to demote is no longer valid');
     }
     if (!promote || promote.isCrewLead) {
-      throw httpError(409, 'The passenger to promote is no longer valid');
+      throw conflict('The passenger to promote is no longer valid');
     }
 
     const apply = this.db.transaction((): ChangeRequest => {
       this.users.setCrewLead(request.demoteId, false);
       this.users.setCrewLead(request.promoteId, true);
       const resolved = this.requests.resolve(requestId, 'APPROVED', approverId);
-      if (!resolved) throw httpError(500, 'Failed to resolve request');
+      if (!resolved) throw serverError('Failed to resolve request');
       return resolved;
     });
     return apply();
@@ -90,15 +90,15 @@ export class CrewLeadService {
     const request = this.requirePending(requestId);
     this.assertApprover(approverId, request);
     const resolved = this.requests.resolve(requestId, 'REJECTED', approverId);
-    if (!resolved) throw httpError(500, 'Failed to resolve request');
+    if (!resolved) throw serverError('Failed to resolve request');
     return resolved;
   }
 
   private requirePending(requestId: string): ChangeRequest {
     const request = this.requests.findById(requestId);
-    if (!request) throw httpError(404, 'Change request not found');
+    if (!request) throw notFound('Change request not found');
     if (request.status !== 'PENDING') {
-      throw httpError(409, 'Change request is no longer pending');
+      throw conflict('Change request is no longer pending');
     }
     return request;
   }
@@ -106,10 +106,10 @@ export class CrewLeadService {
   private assertApprover(approverId: string, request: ChangeRequest): void {
     const approver = this.users.findById(approverId);
     if (!approver?.isCrewLead) {
-      throw httpError(403, 'Only crew leads can approve or reject');
+      throw forbidden('Only crew leads can approve or reject');
     }
     if (approverId === request.proposerId) {
-      throw httpError(403, 'The proposer cannot approve their own request');
+      throw forbidden('The proposer cannot approve their own request');
     }
   }
 }

@@ -3,19 +3,7 @@ import type { RequestHandler } from 'express';
 import type { AuthUser, Role } from '../domain/models.js';
 import type { TokenService } from '../domain/ports/tokenService.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
-import type { HttpError } from '../types.js';
-
-const unauthorized = (message = 'Authentication required'): HttpError => {
-  const err: HttpError = new Error(message);
-  err.status = 401;
-  return err;
-};
-
-const forbidden = (): HttpError => {
-  const err: HttpError = new Error('Insufficient permissions');
-  err.status = 403;
-  return err;
-};
+import { unauthorized, forbidden } from '../utils/httpError.js';
 
 /**
  * Verifies the `Authorization: Bearer <jwt>` header and attaches `req.user`.
