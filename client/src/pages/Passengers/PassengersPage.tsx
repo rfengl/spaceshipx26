@@ -54,7 +54,11 @@ export default function PassengersPage() {
   // sort, and pagination all run client-side over the loaded list (see
   // usePagination below). If a requirement ever scales the roster up (into the
   // thousands), switch this to a server-paged fetch like the audit trail.
-  const { loading, error } = useAsyncLoad(listPassengers, setPassengers);
+  // Mutations (create/edit/delete) refetch via `reload` instead of patching the
+  // list in place: the roster is small and edits are rare, so a refetch keeps
+  // the view authoritative (single source of truth) without a noticeable
+  // flicker — the spinner only shows on the first load, not background reloads.
+  const { loading, error, reload } = useAsyncLoad(listPassengers, setPassengers);
   const del = useAsyncAction();
 
   const [editing, setEditing] = useState<Passenger | null>(null);
@@ -75,20 +79,12 @@ export default function PassengersPage() {
     }
   }
 
-  // Patch the roster in place (add if new) after a create / edit.
-  const applyPassenger = (p: Passenger) =>
-    setPassengers((prev) =>
-      prev.some((x) => x.id === p.id)
-        ? prev.map((x) => (x.id === p.id ? p : x))
-        : [p, ...prev],
-    );
-
   async function confirmDelete() {
     if (!deleting) return;
     await del.run(async () => {
       await deletePassenger(deleting.id);
-      setPassengers((prev) => prev.filter((p) => p.id !== deleting.id));
       setDeleting(null);
+      reload();
     });
   }
 
@@ -125,7 +121,7 @@ export default function PassengersPage() {
       <section className="card">
         <div className="flex items-center justify-between gap-4 max-sm:mb-4">
           <h2 className="m-0 text-[1.1rem]">Passengers</h2>
-          {isCrew && <AddPassengerButton onCreated={applyPassenger} />}
+          {isCrew && <AddPassengerButton onCreated={reload} />}
         </div>
 
         {(error ?? del.error) && <p className="error mt-3">⚠ {error ?? del.error}</p>}
@@ -214,7 +210,7 @@ export default function PassengersPage() {
         <PassengerFormModal
           passenger={editing}
           onClose={() => setEditing(null)}
-          onSaved={applyPassenger}
+          onSaved={reload}
         />
       )}
 
