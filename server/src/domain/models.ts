@@ -74,6 +74,7 @@ export interface AuditEntry {
   type: AuditAction;
   userId: string;
   userName: string;
+  userLevel: MembershipLevel; // the actor's membership tier at read time
   resourceId: string;
   resourceName: string;
   amount: number;

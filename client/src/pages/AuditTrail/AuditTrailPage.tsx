@@ -244,7 +244,12 @@ export default function AuditTrailPage() {
                         {e.resourceName}
                         {e.note && <span className="text-[#7f93b8]"> · {e.note}</span>}
                       </td>
-                      <td data-label="User">{e.userName}</td>
+                      <td data-label="User">
+                        {e.userName}{' '}
+                        <span className={`tier tier-${e.userLevel} ml-1 text-[0.62rem]`}>
+                          {e.userLevel}
+                        </span>
+                      </td>
                       <td className="num" data-label="Qty">
                         {qtyLabel(e)}
                       </td>

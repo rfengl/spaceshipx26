@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { MembershipLevel } from '../types';
 
 export type AuditAction =
   | 'USE'
@@ -14,6 +15,7 @@ export interface AuditEntry {
   type: AuditAction;
   userId: string;
   userName: string;
+  userLevel: MembershipLevel;
   resourceId: string;
   resourceName: string;
   amount: number;

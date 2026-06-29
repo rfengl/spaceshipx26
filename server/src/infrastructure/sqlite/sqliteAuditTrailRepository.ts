@@ -17,6 +17,7 @@ const ENRICHED = `
          a.action      AS type,
          a.user_id     AS userId,
          u.name        AS userName,
+         u.membership_level AS userLevel,
          a.resource_id AS resourceId,
          r.name        AS resourceName,
          a.amount      AS amount,
