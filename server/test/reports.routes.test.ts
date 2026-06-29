@@ -51,11 +51,17 @@ test('high-demand returns the top resources by usage (crew lead)', async () => {
     assert.equal(res.status, 200);
     const { data } = await res.json();
 
-    assert.equal(data.length, 3);
-    assert.equal(data[0].resource.name, 'Sleeping Pod');
-    assert.equal(data[0].uses, 14);
-    assert.equal(data[1].resource.name, 'Food Supply Station');
-    assert.equal(data[2].resource.name, 'Luxury Oxygen Pod');
+    assert.ok(data.length >= 1 && data.length <= 3);
+    // Most-used first, every entry has real usage and a named resource.
+    for (let i = 1; i < data.length; i += 1) {
+      assert.ok(data[i - 1].uses >= data[i].uses);
+    }
+    assert.ok(
+      data.every(
+        (d: { uses: number; resource: { name: string } }) =>
+          d.uses > 0 && typeof d.resource.name === 'string',
+      ),
+    );
   });
 });
 
@@ -68,9 +74,12 @@ test('high-demand accepts a larger limit (for sorting the whole inventory)', asy
     });
     assert.equal(res.status, 200);
     const { data } = await res.json();
-    // Seed attributes usage to 5 distinct resources, all returned (no 10-cap).
-    assert.equal(data.length, 5);
-    assert.equal(data[0].resource.name, 'Sleeping Pod');
+    // Every used resource is returned (no 10-cap), most-used first.
+    assert.ok(data.length >= 1);
+    for (let i = 1; i < data.length; i += 1) {
+      assert.ok(data[i - 1].uses >= data[i].uses);
+    }
+    assert.ok(data.every((d: { uses: number }) => d.uses > 0));
   });
 });
 
@@ -97,11 +106,13 @@ test('shortages returns the most depleted resources first (lowest stock ratio)',
     assert.equal(res.status, 200);
     const { data } = await res.json();
 
-    // Seeded ratios: Basic Hygiene Pod 8/30, Private Cabin 3/10, Luxury O2 3/8.
-    assert.equal(data.length, 3);
-    assert.equal(data[0].name, 'Basic Hygiene Pod');
-    assert.equal(data[1].name, 'Private Cabin');
-    assert.equal(data[2].name, 'Luxury Oxygen Pod');
+    // Up to three most-depleted resources, lowest stock ratio first.
+    assert.ok(data.length >= 1 && data.length <= 3);
+    const ratio = (r: { remainingQty: number; maxQty: number }) =>
+      r.remainingQty / r.maxQty;
+    for (let i = 1; i < data.length; i += 1) {
+      assert.ok(ratio(data[i - 1]) <= ratio(data[i]) + 1e-9);
+    }
   });
 });
 
@@ -110,37 +121,46 @@ test('audit trail returns usage and refill activity, newest first, with names', 
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'ada.lovelace');
 
-    // Refill a resource to create a REFILL entry on top of the seeded usage.
+    // Make an identifiable refill on top of the seeded activity: top the cabin
+    // up, free two units, then refill exactly 2 — so the newest REFILL on the
+    // cabin is unambiguously this one (Ada, amount 2).
     const { data: resources } = await (
       await fetch(`${base}/api/resources`, { headers: authJson(token) })
     ).json();
     const cabin = resources.find((r: { name: string }) => r.name === 'Private Cabin');
-    await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+    const refillCabin = (amount: number) =>
+      fetch(`${base}/api/resources/${cabin.id}/refill`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...authJson(token) },
+        body: JSON.stringify({ amount }),
+      });
+    const room = cabin.maxQty - cabin.remainingQty;
+    if (room > 0) await refillCabin(room); // -> full
+    await fetch(`${base}/api/resources/${cabin.id}/write-off`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...authJson(token) },
       body: JSON.stringify({ amount: 2 }),
     });
+    await refillCabin(2);
 
-    const res = await fetch(`${base}/api/reports/audit?pageSize=100`, {
-      headers: authJson(token),
-    });
+    // Filter to the cabin so the page covers its activity regardless of how busy
+    // the rest of the trail is.
+    const res = await fetch(
+      `${base}/api/reports/audit?resourceId=${cabin.id}&pageSize=100`,
+      { headers: authJson(token) },
+    );
     assert.equal(res.status, 200);
     const { data, total } = await res.json();
 
-    assert.ok(data.length > 0);
-    // The server reports the full match count alongside the page (35 seeded
-    // uses + the refill just made).
-    assert.equal(total, 36);
-    assert.equal(data.length, 36);
+    assert.ok(total > 0);
+    assert.ok(data.length > 0 && data.length <= 100);
+    assert.ok(data.every((e: { resourceId: string }) => e.resourceId === cabin.id));
 
-    // The refill we just made is present and enriched with names + amount.
-    const refill = data.find(
-      (e: { type: string; resourceName: string }) =>
-        e.type === 'REFILL' && e.resourceName === 'Private Cabin',
-    );
-    assert.ok(refill, 'refill activity is in the trail');
-    assert.equal(refill.userName, 'Ada Lovelace');
-    assert.equal(refill.amount, 2);
+    // The newest REFILL on the cabin is the one we just made, enriched.
+    const madeRefill = data.find((e: { type: string }) => e.type === 'REFILL');
+    assert.ok(madeRefill, 'refill activity is in the trail');
+    assert.equal(madeRefill.userName, 'Ada Lovelace');
+    assert.equal(madeRefill.amount, 2);
 
     // Both activity types are present and every entry is name-enriched.
     const types = new Set(data.map((e: { type: string }) => e.type));
@@ -148,8 +168,10 @@ test('audit trail returns usage and refill activity, newest first, with names', 
     assert.ok(types.has('REFILL'));
     assert.ok(
       data.every(
-        (e: { userName: string; resourceName: string }) =>
-          typeof e.userName === 'string' && typeof e.resourceName === 'string',
+        (e: { userName: string; resourceName: string; userLevel: string }) =>
+          typeof e.userName === 'string' &&
+          typeof e.resourceName === 'string' &&
+          ['SILVER', 'GOLD', 'PLATINUM'].includes(e.userLevel),
       ),
     );
 
@@ -232,21 +254,21 @@ test('audit trail paginates and filters by resource and date server-side', async
     // One page is a bounded slice, but total reflects every matching row.
     const firstPage = await get('?pageSize=5&page=1');
     assert.equal(firstPage.data.length, 5);
-    assert.equal(firstPage.total, 35); // 35 seeded uses, no refills yet
+    const total = firstPage.total;
+    assert.ok(total > 5);
 
-    // The page count holds across pages, and a later page returns the remainder.
-    const lastPage = await get('?pageSize=10&page=4');
-    assert.equal(lastPage.total, 35);
-    assert.equal(lastPage.data.length, 5); // rows 31–35
+    // The total holds across pages, and a later page returns a full slice too.
+    const secondPage = await get('?pageSize=5&page=2');
+    assert.equal(secondPage.total, total);
+    assert.equal(secondPage.data.length, 5);
 
-    // Resource filter narrows the total to that resource's use count (Sleeping
-    // Pod is seeded with 14 uses), and every returned row matches.
+    // Resource filter narrows to that resource, and every returned row matches.
     const { data: resources } = await (
       await fetch(`${base}/api/resources`, { headers: authJson(token) })
     ).json();
     const pod = resources.find((r: { name: string }) => r.name === 'Sleeping Pod');
     const byResource = await get(`?resourceId=${pod.id}&pageSize=100`);
-    assert.equal(byResource.total, 14);
+    assert.ok(byResource.total > 0 && byResource.total <= total);
     assert.ok(
       byResource.data.every((e: { resourceId: string }) => e.resourceId === pod.id),
     );
@@ -269,32 +291,28 @@ test('aggregate report groups passengers, resources, stock, and uses by tier', a
     const { data } = await res.json();
     const byLevel = Object.fromEntries(data.map((r: { level: string }) => [r.level, r]));
 
-    // Seed: 2 passengers per tier; resources grouped by required min tier;
-    // all 35 seeded uses are attributed to a PLATINUM passenger.
-    assert.deepEqual(byLevel.SILVER, {
-      level: 'SILVER',
-      passengers: 2,
-      resources: 3,
-      capacity: 100, // 20 + 50 + 30
-      remaining: 46, // 18 + 20 + 8
-      uses: 0,
-    });
-    assert.deepEqual(byLevel.GOLD, {
-      level: 'GOLD',
-      passengers: 2,
-      resources: 2,
-      capacity: 15, // 10 + 5
-      remaining: 7, // 3 + 4
-      uses: 0,
-    });
-    assert.deepEqual(byLevel.PLATINUM, {
-      level: 'PLATINUM',
-      passengers: 2,
-      resources: 2,
-      capacity: 12, // 8 + 4
-      remaining: 7, // 3 + 4
-      uses: 35,
-    });
+    // Counts and capacity are fixed by the seed; stock and uses are
+    // simulation-driven — every tier consumes, so all show usage.
+    const within = (r: { remaining: number; capacity: number }) =>
+      r.remaining >= 0 && r.remaining <= r.capacity;
+
+    assert.equal(byLevel.SILVER.passengers, 2);
+    assert.equal(byLevel.SILVER.resources, 3);
+    assert.equal(byLevel.SILVER.capacity, 179); // 99 + 50 + 30
+    assert.ok(within(byLevel.SILVER));
+    assert.ok(byLevel.SILVER.uses > 0);
+
+    assert.equal(byLevel.GOLD.passengers, 2);
+    assert.equal(byLevel.GOLD.resources, 2);
+    assert.equal(byLevel.GOLD.capacity, 15); // 10 + 5
+    assert.ok(within(byLevel.GOLD));
+    assert.ok(byLevel.GOLD.uses > 0);
+
+    assert.equal(byLevel.PLATINUM.passengers, 2);
+    assert.equal(byLevel.PLATINUM.resources, 2);
+    assert.equal(byLevel.PLATINUM.capacity, 12); // 8 + 4
+    assert.ok(within(byLevel.PLATINUM));
+    assert.ok(byLevel.PLATINUM.uses > 0);
   });
 });
 

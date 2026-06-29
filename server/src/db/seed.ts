@@ -1,10 +1,9 @@
 import type { DB } from './connection.js';
 import type { MembershipLevel } from '../domain/membership.js';
-import type { NewResource } from '../domain/models.js';
 import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import { SqliteUserRepository } from '../infrastructure/sqlite/sqliteUserRepository.js';
 import { SqliteResourceRepository } from '../infrastructure/sqlite/sqliteResourceRepository.js';
-import { SqliteAuditTrailRepository } from '../infrastructure/sqlite/sqliteAuditTrailRepository.js';
+import { seedAuditTrail, type SimPassenger, type SimResource } from './seedAuditTrail.js';
 
 // Every seeded account shares this demo password (hashed before storage).
 export const DEMO_PASSWORD = 'mars2026';
@@ -25,32 +24,23 @@ const PASSENGERS: { name: string; membershipLevel: MembershipLevel }[] = [
   { name: 'Idris Cole', membershipLevel: 'PLATINUM' },
 ];
 
-// Base ship inventory, by minimum required tier (from the brief).
-// remainingQty is seeded with variety so the passenger dashboard shows a mix of
-// normal / low (yellow, < 1/2) / critical (red, < 1/3) stock levels.
-const RESOURCES: NewResource[] = [
-  { name: 'Food Supply Station', minLevel: 'SILVER', maxQty: 20, remainingQty: 18 },
-  { name: 'Sleeping Pod', minLevel: 'SILVER', maxQty: 50, remainingQty: 20 },
-  { name: 'Basic Hygiene Pod', minLevel: 'SILVER', maxQty: 30, remainingQty: 8 },
-  { name: 'Private Cabin', minLevel: 'GOLD', maxQty: 10, remainingQty: 3 },
-  { name: 'Advanced Medical Bay', minLevel: 'GOLD', maxQty: 5, remainingQty: 4 },
-  { name: 'Luxury Oxygen Pod', minLevel: 'PLATINUM', maxQty: 8, remainingQty: 3 },
-  { name: 'VIP Rec Deck', minLevel: 'PLATINUM', maxQty: 4, remainingQty: 4 },
+// Base ship inventory, by minimum required tier (from the brief). Every resource
+// launches full; the year-long simulation then draws it down and refills it.
+const RESOURCES: { name: string; minLevel: MembershipLevel; maxQty: number }[] = [
+  { name: 'Food Supply Station', minLevel: 'SILVER', maxQty: 99 },
+  { name: 'Sleeping Pod', minLevel: 'SILVER', maxQty: 50 },
+  { name: 'Basic Hygiene Pod', minLevel: 'SILVER', maxQty: 30 },
+  { name: 'Private Cabin', minLevel: 'GOLD', maxQty: 10 },
+  { name: 'Advanced Medical Bay', minLevel: 'GOLD', maxQty: 5 },
+  { name: 'Luxury Oxygen Pod', minLevel: 'PLATINUM', maxQty: 8 },
+  { name: 'VIP Rec Deck', minLevel: 'PLATINUM', maxQty: 4 },
 ];
 
-// Simulated past usage (number of uses) so the crew "high demand" report has data.
-const USAGE_DEMAND: Record<string, number> = {
-  'Sleeping Pod': 14,
-  'Food Supply Station': 9,
-  'Luxury Oxygen Pod': 6,
-  'Private Cabin': 4,
-  'Advanced Medical Bay': 2,
-};
-
 /**
- * Populates the database with starter data: 3 crew leads + 6 passengers (all
- * users) and the base resource inventory. Idempotent — does nothing if crew
- * leads already exist, so it is safe to call on every startup.
+ * Populates the database with starter data: 3 crew leads + 6 passengers and the
+ * base resource inventory (full at launch), then hands off to `seedAuditTrail`
+ * to simulate a year of usage and refills so the reports and trend views have
+ * real history. Idempotent — does nothing if crew leads already exist.
  */
 export async function seedDatabase(
   db: DB,
@@ -62,51 +52,46 @@ export async function seedDatabase(
   }
 
   const resources = new SqliteResourceRepository(db);
-  const audit = new SqliteAuditTrailRepository(db);
 
-  // Hash once (all demo accounts share the same password) — bcrypt is async,
-  // so this must happen before the synchronous better-sqlite3 transaction.
+  // Hash once (all demo accounts share the same password) — bcrypt is async, so
+  // this must happen before the synchronous better-sqlite3 transactions.
   const passwordHash = await hasher.hash(DEMO_PASSWORD);
 
-  const insertAll = db.transaction(() => {
-    for (const name of CREW_LEADS) {
-      users.create({
-        username: handle(name),
-        passwordHash,
-        name,
-        membershipLevel: 'PLATINUM',
-        isCrewLead: true,
-      });
-    }
+  // Create the accounts and the full inventory in one transaction.
+  const createAll = db.transaction(() => {
+    const crewIds = CREW_LEADS.map(
+      (name) =>
+        users.create({
+          username: handle(name),
+          passwordHash,
+          name,
+          membershipLevel: 'PLATINUM',
+          isCrewLead: true,
+        }).id,
+    );
 
-    // Attribute the simulated usage to the last passenger (kept distinct so
-    // other passengers' usage histories stay clean for tests/demos).
-    let usageUserId = '';
-    for (const passenger of PASSENGERS) {
-      usageUserId = users.create({
+    const simPassengers: SimPassenger[] = PASSENGERS.map((passenger) => {
+      const created = users.create({
         username: handle(passenger.name),
         passwordHash,
         name: passenger.name,
         membershipLevel: passenger.membershipLevel,
         isCrewLead: false,
-      }).id;
-    }
+      });
+      return { id: created.id, tier: passenger.membershipLevel };
+    });
 
-    const resourceIdByName = new Map<string, string>();
-    for (const resource of RESOURCES) {
-      resourceIdByName.set(resource.name, resources.create(resource).id);
-    }
+    const simResources: SimResource[] = RESOURCES.map((r) => {
+      const created = resources.create(r); // remainingQty defaults to maxQty (full)
+      return { ...r, id: created.id, remaining: created.remainingQty };
+    });
 
-    // Simulated past usage so the crew "high demand" report has data.
-    for (const [name, uses] of Object.entries(USAGE_DEMAND)) {
-      const resourceId = resourceIdByName.get(name);
-      if (!resourceId) continue;
-      for (let i = 0; i < uses; i += 1) {
-        audit.record({ userId: usageUserId, resourceId, action: 'USE', amount: 1 });
-      }
-    }
+    return { crewIds, simPassengers, simResources };
   });
-  insertAll();
+  const { crewIds, simPassengers, simResources } = createAll();
+
+  // Simulate a year of activity — each use/refill its own transaction.
+  seedAuditTrail(db, simPassengers, simResources, crewIds);
 
   return { seeded: true };
 }

@@ -64,8 +64,9 @@ test('discovery includes remaining/max quantity', async () => {
   await withServer(app, async (base) => {
     const list = await myResources(base, 'nova.reyes');
     const food = list.find((r) => r.name === 'Food Supply Station')!;
-    assert.equal(food.maxQty, 20);
-    assert.equal(food.remainingQty, 18);
+    assert.equal(food.maxQty, 99);
+    // Remaining is simulation-driven; it just has to stay within capacity.
+    assert.ok(food.remainingQty >= 0 && food.remainingQty <= food.maxQty);
   });
 });
 
@@ -140,31 +141,35 @@ test('using a resource decrements remaining and records an audit log', async () 
       ).json()
     ).data as { id: string; name: string; remainingQty: number }[];
     const food = list.find((r) => r.name === 'Food Supply Station')!;
-    assert.equal(food.remainingQty, 18);
+    const beforeStock = food.remainingQty;
+    assert.ok(beforeStock >= 1, 'resource has stock to use');
+
+    const audit = new SqliteAuditTrailRepository(db);
+    const beforeLogs = audit.findByUser(nova.id).length;
 
     const res = await fetch(`${base}/api/me/resources/${food.id}/use`, {
       method: 'POST',
       headers: bearer(nova.token),
     });
     assert.equal(res.status, 200);
-    assert.equal((await res.json()).data.remainingQty, 17);
+    assert.equal((await res.json()).data.remainingQty, beforeStock - 1);
 
-    // Audit trail: who consumed what
-    const logs = new SqliteAuditTrailRepository(db).findByUser(nova.id);
-    assert.equal(logs.length, 1);
-    assert.equal(logs[0].type, 'USE');
-    assert.equal(logs[0].resourceId, food.id);
+    // Audit trail: the use adds exactly one entry for this passenger.
+    const logs = audit.findByUser(nova.id);
+    assert.equal(logs.length, beforeLogs + 1);
+    assert.ok(logs.some((l) => l.type === 'USE' && l.resourceId === food.id));
 
-    // Personal history endpoint returns the passenger's own entry, enriched.
+    // Personal history returns this passenger's own entries, enriched.
     const history = (
       await (
         await fetch(`${base}/api/me/history`, { headers: bearer(nova.token) })
       ).json()
     ).data as { type: string; resourceName: string; userName: string }[];
-    assert.equal(history.length, 1);
-    assert.equal(history[0].type, 'USE');
-    assert.equal(history[0].resourceName, 'Food Supply Station');
-    assert.equal(history[0].userName, 'Nova Reyes');
+    assert.ok(history.length >= 1);
+    assert.ok(history.every((h) => h.userName === 'Nova Reyes'));
+    assert.ok(
+      history.some((h) => h.type === 'USE' && h.resourceName === 'Food Supply Station'),
+    );
   });
 });
 
@@ -188,14 +193,34 @@ test('personal history is scoped to the requesting user only', async () => {
       headers: bearer(nova.token),
     });
 
-    // Milo has no usage; his history is empty even though the trail isn't.
-    const milo = await loginUser(base, 'milo.chen');
-    const miloHistory = (
+    // Nova's history contains only her own activity.
+    const novaHistory = (
       await (
-        await fetch(`${base}/api/me/history`, { headers: bearer(milo.token) })
+        await fetch(`${base}/api/me/history`, { headers: bearer(nova.token) })
+      ).json()
+    ).data as { userName: string }[];
+    assert.ok(novaHistory.length >= 1);
+    assert.ok(novaHistory.every((h) => h.userName === 'Nova Reyes'));
+
+    // A brand-new passenger has an empty history even though the trail isn't.
+    const ada = await loginUser(base, 'ada.lovelace');
+    await fetch(`${base}/api/passengers`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...bearer(ada.token) },
+      body: JSON.stringify({
+        username: 'fresh.cadet',
+        password: DEMO_PASSWORD,
+        name: 'Fresh Cadet',
+        membershipLevel: 'SILVER',
+      }),
+    });
+    const fresh = await loginUser(base, 'fresh.cadet');
+    const freshHistory = (
+      await (
+        await fetch(`${base}/api/me/history`, { headers: bearer(fresh.token) })
       ).json()
     ).data as unknown[];
-    assert.equal(miloHistory.length, 0);
+    assert.equal(freshHistory.length, 0);
 
     // History requires authentication.
     assert.equal((await fetch(`${base}/api/me/history`)).status, 401);

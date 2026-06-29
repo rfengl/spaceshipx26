@@ -155,26 +155,29 @@ test('crew lead can refill a resource, capped at its maximum', async () => {
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'ada.lovelace');
-    const cabin = await findResource(base, token, 'Private Cabin'); // 3 / 10
+    const cabin = await findResource(base, token, 'Private Cabin');
+    const room = cabin.maxQty - cabin.remainingQty;
 
-    const ok = await fetch(`${base}/api/resources/${cabin.id}/refill`, {
-      method: 'POST',
-      headers: authJson(token),
-      body: JSON.stringify({ amount: 5 }),
-    });
-    assert.equal(ok.status, 200);
-    const { data: refilled } = await ok.json();
-    assert.equal(refilled.remainingQty, 8); // 3 + 5
+    // Refilling within the available room tops the resource up to its maximum.
+    if (room > 0) {
+      const ok = await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+        method: 'POST',
+        headers: authJson(token),
+        body: JSON.stringify({ amount: room }),
+      });
+      assert.equal(ok.status, 200);
+      assert.equal((await ok.json()).data.remainingQty, cabin.maxQty);
+    }
 
-    // Refilling beyond the max (8 + 5 > 10) is rejected and leaves stock intact.
+    // Now full: any further refill exceeds the maximum and is rejected.
     const tooMuch = await fetch(`${base}/api/resources/${cabin.id}/refill`, {
       method: 'POST',
       headers: authJson(token),
-      body: JSON.stringify({ amount: 5 }),
+      body: JSON.stringify({ amount: 1 }),
     });
     assert.equal(tooMuch.status, 400);
     const after = await findResource(base, token, 'Private Cabin');
-    assert.equal(after.remainingQty, 8);
+    assert.equal(after.remainingQty, cabin.maxQty);
   });
 });
 
@@ -221,7 +224,18 @@ test('crew lead can write off stock; cannot exceed remaining; logged with reason
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'ada.lovelace');
-    const cabin = await findResource(base, token, 'Private Cabin'); // 3 / 10
+    let cabin = await findResource(base, token, 'Private Cabin');
+    // Top up first so there is stock to write off, whatever the simulation left.
+    const room = cabin.maxQty - cabin.remainingQty;
+    if (room > 0) {
+      await fetch(`${base}/api/resources/${cabin.id}/refill`, {
+        method: 'POST',
+        headers: authJson(token),
+        body: JSON.stringify({ amount: room }),
+      });
+      cabin = await findResource(base, token, 'Private Cabin');
+    }
+    const before = cabin.remainingQty;
 
     const ok = await fetch(`${base}/api/resources/${cabin.id}/write-off`, {
       method: 'POST',
@@ -229,20 +243,26 @@ test('crew lead can write off stock; cannot exceed remaining; logged with reason
       body: JSON.stringify({ amount: 2, reason: 'Expired' }),
     });
     assert.equal(ok.status, 200);
-    assert.equal((await ok.json()).data.remainingQty, 1); // 3 - 2
+    assert.equal((await ok.json()).data.remainingQty, before - 2);
 
-    // Writing off more than what's left (2 > 1) is rejected, stock untouched.
+    // Writing off more than what's left is rejected, stock untouched.
     const tooMuch = await fetch(`${base}/api/resources/${cabin.id}/write-off`, {
       method: 'POST',
       headers: authJson(token),
-      body: JSON.stringify({ amount: 2 }),
+      body: JSON.stringify({ amount: before }),
     });
     assert.equal(tooMuch.status, 400);
-    assert.equal((await findResource(base, token, 'Private Cabin')).remainingQty, 1);
+    assert.equal(
+      (await findResource(base, token, 'Private Cabin')).remainingQty,
+      before - 2,
+    );
 
-    // The write-off is in the audit trail with its amount and reason.
+    // The write-off is in the audit trail with its amount and reason. Filter to
+    // the cabin so it's on the page regardless of the rest of the year's trail.
     const { data: trail } = await (
-      await fetch(`${base}/api/reports/audit`, { headers: authJson(token) })
+      await fetch(`${base}/api/reports/audit?resourceId=${cabin.id}&pageSize=100`, {
+        headers: authJson(token),
+      })
     ).json();
     const entry = trail.find(
       (e: { type: string; resourceId: string }) =>
@@ -258,28 +278,45 @@ test('editing max quantity below current remaining stock is rejected (400)', asy
   const app = await buildSeededApp();
   await withServer(app, async (base) => {
     const token = await tokenFor(base, 'ada.lovelace');
-    const food = await findResource(base, token, 'Food Supply Station'); // 18 / 20
+    let food = await findResource(base, token, 'Food Supply Station');
+    // Normalize stock to a known level below capacity: top up to full, then
+    // write off 5 → remaining maxQty - 5.
+    const room = food.maxQty - food.remainingQty;
+    if (room > 0) {
+      await fetch(`${base}/api/resources/${food.id}/refill`, {
+        method: 'POST',
+        headers: authJson(token),
+        body: JSON.stringify({ amount: room }),
+      });
+    }
+    await fetch(`${base}/api/resources/${food.id}/write-off`, {
+      method: 'POST',
+      headers: authJson(token),
+      body: JSON.stringify({ amount: 5, reason: 'Normalize' }),
+    });
+    food = await findResource(base, token, 'Food Supply Station');
+    const rem = food.remainingQty;
 
-    // Lowering the cap below the 18 already in stock would overflow capacity.
+    // Lowering the cap below the stock on hand would overflow capacity.
     const res = await fetch(`${base}/api/resources/${food.id}`, {
       method: 'PUT',
       headers: authJson(token),
-      body: JSON.stringify({ maxQty: 10 }),
+      body: JSON.stringify({ maxQty: rem - 1 }),
     });
     assert.equal(res.status, 400);
     // Stock and capacity are untouched.
     const after = await findResource(base, token, 'Food Supply Station');
-    assert.equal(after.maxQty, 20);
-    assert.equal(after.remainingQty, 18);
+    assert.equal(after.maxQty, food.maxQty);
+    assert.equal(after.remainingQty, rem);
 
     // Lowering to exactly the remaining stock is allowed.
     const ok = await fetch(`${base}/api/resources/${food.id}`, {
       method: 'PUT',
       headers: authJson(token),
-      body: JSON.stringify({ maxQty: 18 }),
+      body: JSON.stringify({ maxQty: rem }),
     });
     assert.equal(ok.status, 200);
-    assert.equal((await ok.json()).data.maxQty, 18);
+    assert.equal((await ok.json()).data.maxQty, rem);
   });
 });
 
