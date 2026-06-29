@@ -1,9 +1,30 @@
+// This module is the single owner of persisted session state (the JWT and the
+// cached current user). Nothing else should touch these localStorage keys.
 const TOKEN_KEY = 'prms_token';
 const USER_KEY = 'prms_user';
 
 export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token);
-export const clearToken = (): void => localStorage.removeItem(TOKEN_KEY);
+
+/** The cached current user (parsed), or null if absent or corrupt. */
+export function getStoredUser<T>(): T | null {
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export const setStoredUser = (user: unknown): void =>
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+/** Clear all persisted session state (token + cached user). */
+export const clearSession = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+};
 
 export interface ApiError extends Error {
   status: number;
@@ -24,8 +45,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     // An expired/invalid token on an authenticated request → clear the session
     // and bounce back to the login page.
     if (res.status === 401 && token) {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
+      clearSession();
       window.location.reload();
     }
 

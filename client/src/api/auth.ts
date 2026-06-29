@@ -1,7 +1,5 @@
-import { apiFetch, setToken, clearToken } from './client';
+import { apiFetch, setToken, setStoredUser, getStoredUser, clearSession } from './client';
 import type { AuthUser } from '../types';
-
-const USER_KEY = 'prms_user';
 
 interface LoginResponse {
   token: string;
@@ -14,23 +12,16 @@ export async function login(username: string, password: string): Promise<AuthUse
     body: JSON.stringify({ username, password }),
   });
   setToken(token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  setStoredUser(user);
   return user;
 }
 
 export function logout(): void {
-  clearToken();
-  localStorage.removeItem(USER_KEY);
+  clearSession();
 }
 
 export function loadStoredUser(): AuthUser | null {
-  const raw = localStorage.getItem(USER_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    return null;
-  }
+  return getStoredUser<AuthUser>();
 }
 
 /**
@@ -39,7 +30,7 @@ export function loadStoredUser(): AuthUser | null {
  */
 export async function fetchMe(): Promise<AuthUser> {
   const { user } = await apiFetch<{ user: AuthUser }>('/api/auth/me');
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  setStoredUser(user);
   return user;
 }
 
@@ -52,6 +43,6 @@ export async function refreshToken(): Promise<AuthUser> {
     method: 'POST',
   });
   setToken(token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  setStoredUser(user);
   return user;
 }
