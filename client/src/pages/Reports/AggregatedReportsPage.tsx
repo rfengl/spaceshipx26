@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { getAggregateReport, type TierSummary } from '../../api/reports';
+import { useAsyncLoad } from '../../hooks/useAsyncLoad';
 import BackDashboardButton from '../../components/BackDashboardButton';
-import { errorMessage } from '../../utils/errorMessage';
 
 // Colour the stock bar by how full it is (matches the shortage hints elsewhere).
 function barColor(ratio: number) {
@@ -21,15 +21,9 @@ const emptyTotals = {
 
 export default function AggregatedReportsPage() {
   const [rows, setRows] = useState<TierSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getAggregateReport()
-      .then(setRows)
-      .catch((e) => setError(errorMessage(e)))
-      .finally(() => setLoading(false));
-  }, []);
+  // One-shot load of the pre-aggregated report — a fixed handful of rows (one
+  // per membership tier), so there's nothing to page or filter.
+  const { loading, error } = useAsyncLoad(getAggregateReport, setRows);
 
   const totals = rows.reduce(
     (a, r) => ({

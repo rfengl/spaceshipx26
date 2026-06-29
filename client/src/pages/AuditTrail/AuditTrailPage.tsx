@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import Pagination from '../../components/Pagination';
 import { getAuditPage, type AuditAction, type AuditEntry } from '../../api/audit';
@@ -6,8 +6,9 @@ import { listResources } from '../../api/resources';
 import { listCrewLeads } from '../../api/crewLeads';
 import { listPassengers } from '../../api/passengers';
 import { usePagination } from '../../hooks/usePagination';
+import { useAsyncLoad } from '../../hooks/useAsyncLoad';
+import { useAsyncOptions, type Option } from '../../hooks/useAsyncOptions';
 import BackDashboardButton from '../../components/BackDashboardButton';
-import { errorMessage } from '../../utils/errorMessage';
 import { formatDateTime } from '../../utils/dateUtil';
 
 // Display label + badge colour per activity type.
@@ -35,11 +36,6 @@ const qtyLabel = (e: AuditEntry) => {
   return '—';
 };
 
-interface Option {
-  value: string;
-  label: string;
-}
-
 const byLabel = (a: Option, b: Option) => a.label.localeCompare(b.label);
 
 export default function AuditTrailPage() {
@@ -47,8 +43,6 @@ export default function AuditTrailPage() {
   // change refetches just the matching page plus a total count (for the pager).
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const [userId, setUserId] = useState('');
   const [resourceId, setResourceId] = useState('');
@@ -66,49 +60,32 @@ export default function AuditTrailPage() {
   // Filter dropdowns are sourced from the live rosters/inventory (active only),
   // so soft-deleted users/resources aren't selectable — their past activity
   // still appears under "All".
-  const [userOptions, setUserOptions] = useState<Option[]>([]);
-  const [resourceOptions, setResourceOptions] = useState<Option[]>([]);
-
-  useEffect(() => {
-    // Anyone who can act on resources (crew refills/lifecycle + passenger uses).
-    Promise.all([listCrewLeads(), listPassengers()])
-      .then(([crew, passengers]) => {
-        const map = new Map<string, string>();
-        [...crew, ...passengers].forEach((u) => map.set(u.id, u.name));
-        setUserOptions(
-          [...map].map(([value, label]) => ({ value, label })).sort(byLabel),
-        );
-      })
-      .catch(() => setUserOptions([]));
-  }, []);
-
-  useEffect(() => {
-    listResources()
-      .then((rs) =>
-        setResourceOptions(rs.map((r) => ({ value: r.id, label: r.name })).sort(byLabel)),
-      )
-      .catch(() => setResourceOptions([]));
-  }, []);
+  // Anyone who can act on resources: crew refills/lifecycle + passenger uses.
+  const userOptions = useAsyncOptions(
+    () => Promise.all([listCrewLeads(), listPassengers()]),
+    ([crew, passengers]) => {
+      const map = new Map<string, string>();
+      [...crew, ...passengers].forEach((u) => map.set(u.id, u.name));
+      return [...map].map(([value, label]) => ({ value, label })).sort(byLabel);
+    },
+  );
+  // The active resource inventory.
+  const resourceOptions = useAsyncOptions(listResources, (rs) =>
+    rs.map((r) => ({ value: r.id, label: r.name })).sort(byLabel),
+  );
 
   const { page, pageSize, onPage } = paging;
   // Refetch the current page whenever the page, page size, or any filter changes.
-  // `active` guards against an out-of-order response overwriting a newer one.
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError(null);
-    getAuditPage({ page, pageSize, userId, resourceId, from, to })
-      .then((res) => {
-        if (!active) return;
-        setEntries(res.data);
-        setTotal(res.total);
-      })
-      .catch((e) => active && setError(errorMessage(e)))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [page, pageSize, userId, resourceId, from, to]);
+  // useAsyncLoad's out-of-order guard drops a stale response that would
+  // otherwise overwrite a newer one.
+  const { loading, error } = useAsyncLoad(
+    () => getAuditPage({ page, pageSize, userId, resourceId, from, to }),
+    (res) => {
+      setEntries(res.data);
+      setTotal(res.total);
+    },
+    [page, pageSize, userId, resourceId, from, to],
+  );
 
   const hasFilter = Boolean(userId || resourceId || from || to);
 

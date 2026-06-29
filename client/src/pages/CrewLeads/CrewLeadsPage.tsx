@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { useAuth } from '../../hooks/useAuth';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { useAsyncLoad } from '../../hooks/useAsyncLoad';
 import ProposeSwapButton from './ProposeSwapButton';
 import { listPassengers } from '../../api/passengers';
 import {
@@ -11,7 +13,6 @@ import {
 } from '../../api/crewLeads';
 import type { ChangeRequest, Passenger } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
-import { errorMessage } from '../../utils/errorMessage';
 
 export default function CrewLeadsPage() {
   const { user } = useAuth();
@@ -20,43 +21,35 @@ export default function CrewLeadsPage() {
   const [crewLeads, setCrewLeads] = useState<Passenger[]>([]);
   const [passengers, setPassengers] = useState<Passenger[]>([]);
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const nameOf = (id: string) =>
     [...crewLeads, ...passengers].find((p) => p.id === id)?.name ?? 'someone';
 
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      const [crew, pax, reqs] = await Promise.all([
+  // Load everything this page needs in one shot: the crew-lead roster, plus
+  // (crew only) the passenger pool to promote from and the pending swap
+  // requests. All three are small and unpaged — crew leads number a handful and
+  // the roster is bounded — so we fetch them whole rather than server-paging.
+  // `reload` re-runs all three after a swap is proposed or resolved.
+  const { loading, error, reload } = useAsyncLoad(
+    () =>
+      Promise.all([
         listCrewLeads(),
         isCrew ? listPassengers() : Promise.resolve<Passenger[]>([]),
         isCrew ? listRequests() : Promise.resolve<ChangeRequest[]>([]),
-      ]);
+      ]),
+    ([crew, pax, reqs]) => {
       setCrewLeads(crew);
       setPassengers(pax);
       setRequests(reqs);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void refresh();
-  }, []);
+    },
+  );
+  const requestAction = useAsyncAction();
 
   async function resolve(id: string, action: 'approve' | 'reject') {
-    setError(null);
-    try {
+    await requestAction.run(async () => {
       await (action === 'approve' ? approveRequest(id) : rejectRequest(id));
-      await refresh();
-    } catch (e) {
-      setError(errorMessage(e));
-    }
+      reload();
+    });
   }
 
   const pending = requests.filter((r) => r.status === 'PENDING');
@@ -74,12 +67,14 @@ export default function CrewLeadsPage() {
             <ProposeSwapButton
               demotable={demotable}
               passengers={passengers}
-              onProposed={refresh}
+              onProposed={reload}
             />
           )}
         </div>
 
-        {error && <p className="error mt-3">⚠ {error}</p>}
+        {(error ?? requestAction.error) && (
+          <p className="error mt-3">⚠ {error ?? requestAction.error}</p>
+        )}
 
         {loading && crewLeads.length === 0 ? (
           <p className="muted mt-3">Loading crew leads…</p>

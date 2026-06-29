@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useAuth } from '../../hooks/useAuth';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { useAsyncLoad } from '../../hooks/useAsyncLoad';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { usePagination } from '../../hooks/usePagination';
 import ConfirmDialog from '../../components/Modal/ConfirmDialog';
@@ -11,7 +13,6 @@ import PassengerFormModal from './PassengerFormModal';
 import { listPassengers, deletePassenger } from '../../api/passengers';
 import { TIER_RANK, type Passenger } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
-import { errorMessage } from '../../utils/errorMessage';
 
 type SortKey = 'name' | 'username' | 'membershipLevel';
 
@@ -48,12 +49,16 @@ export default function PassengersPage() {
   const isCrew = user.role === 'CREW_LEAD';
 
   const [passengers, setPassengers] = useState<Passenger[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Load the whole roster in one request — no server-side paging/filter on
+  // purpose. A spaceship carries a bounded number of passengers, so search,
+  // sort, and pagination all run client-side over the loaded list (see
+  // usePagination below). If a requirement ever scales the roster up (into the
+  // thousands), switch this to a server-paged fetch like the audit trail.
+  const { loading, error } = useAsyncLoad(listPassengers, setPassengers);
+  const del = useAsyncAction();
 
   const [editing, setEditing] = useState<Passenger | null>(null);
   const [deleting, setDeleting] = useState<Passenger | null>(null);
-  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = usePersistentState<SortKey>('passengers.sortKey', 'name');
@@ -70,22 +75,6 @@ export default function PassengersPage() {
     }
   }
 
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      setPassengers(await listPassengers());
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void refresh();
-  }, []);
-
   // Patch the roster in place (add if new) after a create / edit.
   const applyPassenger = (p: Passenger) =>
     setPassengers((prev) =>
@@ -96,17 +85,11 @@ export default function PassengersPage() {
 
   async function confirmDelete() {
     if (!deleting) return;
-    setDeleteBusy(true);
-    setError(null);
-    try {
+    await del.run(async () => {
       await deletePassenger(deleting.id);
       setPassengers((prev) => prev.filter((p) => p.id !== deleting.id));
       setDeleting(null);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setDeleteBusy(false);
-    }
+    });
   }
 
   const filtered = useMemo(() => {
@@ -145,7 +128,7 @@ export default function PassengersPage() {
           {isCrew && <AddPassengerButton onCreated={applyPassenger} />}
         </div>
 
-        {error && <p className="error mt-3">⚠ {error}</p>}
+        {(error ?? del.error) && <p className="error mt-3">⚠ {error ?? del.error}</p>}
 
         {loading && passengers.length === 0 ? (
           <p className="muted mt-3">Loading passengers…</p>
@@ -246,7 +229,7 @@ export default function PassengersPage() {
           }
           confirmLabel="Delete"
           danger
-          busy={deleteBusy}
+          busy={del.busy}
           onConfirm={() => void confirmDelete()}
           onCancel={() => setDeleting(null)}
         />

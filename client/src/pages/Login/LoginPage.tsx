@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
 import { login } from '../../api/auth';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import type { AuthUser } from '../../types';
 
 interface Props {
@@ -22,8 +23,7 @@ const inputClass =
 export default function LoginPage({ onAuthenticated }: Props) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const { busy: submitting, error, run, setError } = useAsyncAction();
 
   function applyHint(name: string) {
     setUsername(name);
@@ -37,16 +37,10 @@ export default function LoginPage({ onAuthenticated }: Props) {
       setError('Enter your pilot name and access code to proceed.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
+    await run(async () => {
       const user = await login(username.trim(), password);
       onAuthenticated(user);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setSubmitting(false);
-    }
+    });
   }
 
   return (

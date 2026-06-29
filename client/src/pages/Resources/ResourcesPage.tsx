@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { useAsyncLoad } from '../../hooks/useAsyncLoad';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { usePagination } from '../../hooks/usePagination';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -25,7 +27,6 @@ import {
 } from '../../api/resources';
 import type { Resource } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
-import { errorMessage } from '../../utils/errorMessage';
 import { sortResources, type SortKey } from './sortResources';
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -55,8 +56,13 @@ export default function ResourcesPage() {
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const [resources, setResources] = useState<Resource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Fetch the full inventory in one request — deliberately unpaged server-side.
+  // A spaceship stocks a bounded set of resources, so filtering, sorting, and
+  // pagination happen client-side over the loaded list. Revisit (server-side
+  // paging like the audit trail) only if the catalogue is expected to scale up.
+  const { loading, error } = useAsyncLoad(listResources, setResources);
+  // Shared by the page's mutations (decommission toggle + delete).
+  const action = useAsyncAction();
 
   // Each modal is opened by selecting the resource it acts on (null = closed).
   const [editing, setEditing] = useState<Resource | null>(null);
@@ -64,7 +70,6 @@ export default function ResourcesPage() {
   const [writingOff, setWritingOff] = useState<Resource | null>(null);
 
   const [deleting, setDeleting] = useState<Resource | null>(null);
-  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = usePersistentState<SortKey>('resources.sortKey', 'name');
@@ -79,22 +84,6 @@ export default function ResourcesPage() {
     getResourceDemand()
       .then(setDemand)
       .catch(() => setDemand({}));
-  }, []);
-
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      setResources(await listResources());
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void refresh();
   }, []);
 
   // Scroll the resource arrived-at from a dashboard shortage card into view.
@@ -129,31 +118,22 @@ export default function ResourcesPage() {
   });
 
   async function toggleDecommission(resource: Resource) {
-    setError(null);
-    try {
+    await action.run(async () => {
       applyResource(
         await updateResource(resource.id, {
           isDecommissioned: !resource.isDecommissioned,
         }),
       );
-    } catch (e) {
-      setError(errorMessage(e));
-    }
+    });
   }
 
   async function confirmDelete() {
     if (!deleting) return;
-    setDeleteBusy(true);
-    setError(null);
-    try {
+    await action.run(async () => {
       await deleteResource(deleting.id);
       removeResourceById(deleting.id);
       setDeleting(null);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setDeleteBusy(false);
-    }
+    });
   }
 
   const filtered = useMemo(() => {
@@ -201,7 +181,9 @@ export default function ResourcesPage() {
           {isCrew && <ProvisionResourceButton onCreated={applyResource} />}
         </div>
 
-        {error && <p className="error mt-3">⚠ {error}</p>}
+        {(error ?? action.error) && (
+          <p className="error mt-3">⚠ {error ?? action.error}</p>
+        )}
 
         {loading && resources.length === 0 ? (
           <p className="muted mt-3">Loading resources…</p>
@@ -307,7 +289,7 @@ export default function ResourcesPage() {
           }
           confirmLabel="Delete"
           danger
-          busy={deleteBusy}
+          busy={action.busy}
           onConfirm={() => void confirmDelete()}
           onCancel={() => setDeleting(null)}
         />

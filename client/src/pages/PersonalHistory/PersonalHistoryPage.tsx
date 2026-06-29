@@ -1,20 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
+import { useAsyncLoad } from '../../hooks/useAsyncLoad';
+import { useAsyncOptions } from '../../hooks/useAsyncOptions';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/Pagination';
 import { getMyHistory, type AuditEntry } from '../../api/audit';
 import { listMyResources } from '../../api/resources';
-import type { Resource } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
-import { errorMessage } from '../../utils/errorMessage';
 import { formatDateTime } from '../../utils/dateUtil';
 
 export default function PersonalHistoryPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const [resourceId, setResourceId] = useState('');
   const [from, setFrom] = useState('');
@@ -26,36 +23,27 @@ export default function PersonalHistoryPage() {
     { storageKey: 'history.pageSize', total, resetKey: `${resourceId}|${from}|${to}` },
   );
 
-  // Resources the passenger can reach — drives the filter dropdown.
-  useEffect(() => {
-    listMyResources()
-      .then(setResources)
-      .catch(() => {});
-  }, []);
+  // Best-effort dropdown source: the resources this passenger can reach.
+  const resourceOptions = useAsyncOptions(listMyResources, (rs) =>
+    rs.map((r) => ({ value: r.id, label: r.name })),
+  );
 
   // Fetch the current page server-side whenever paging or filters change.
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError(null);
-    getMyHistory({
-      page,
-      pageSize,
-      resourceId: resourceId || undefined,
-      from: from || undefined,
-      to: to || undefined,
-    })
-      .then((res) => {
-        if (!active) return;
-        setEntries(res.data);
-        setTotal(res.total);
-      })
-      .catch((e) => active && setError(errorMessage(e)))
-      .finally(() => active && setLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [page, pageSize, resourceId, from, to]);
+  const { loading, error } = useAsyncLoad(
+    () =>
+      getMyHistory({
+        page,
+        pageSize,
+        resourceId: resourceId || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      }),
+    (res) => {
+      setEntries(res.data);
+      setTotal(res.total);
+    },
+    [page, pageSize, resourceId, from, to],
+  );
 
   const hasFilter = Boolean(resourceId || from || to);
   const clear = () => {
@@ -86,9 +74,9 @@ export default function PersonalHistoryPage() {
               onChange={(e) => setResourceId(e.target.value)}
             >
               <option value="">All</option>
-              {resources.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
+              {resourceOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>
