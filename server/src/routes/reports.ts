@@ -10,10 +10,7 @@ import type {
 import type { ReportingRepository } from '../domain/ports/reportingRepository.js';
 import type { ResourceRepository } from '../domain/ports/resourceRepository.js';
 import { notFound } from '../utils/httpError.js';
-
-// A trimmed query-string value, or undefined when absent/blank.
-const queryString = (v: unknown): string | undefined =>
-  typeof v === 'string' && v.trim() ? v.trim() : undefined;
+import { parsePagination, queryString } from '../utils/pagination.js';
 
 /**
  * Crew-lead analytics. Exposes the highest-demand resources, the resources
@@ -72,15 +69,14 @@ export function createReportsRouter(
   router.get(
     '/audit',
     asyncHandler(async (req, res) => {
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+      const { limit, offset } = parsePagination(req.query);
       const filter: AuditFilter = {
         userId: queryString(req.query.userId),
         resourceId: queryString(req.query.resourceId),
         from: queryString(req.query.from),
         to: queryString(req.query.to),
       };
-      const { entries, total } = audit.search(filter, pageSize, (page - 1) * pageSize);
+      const { entries, total } = audit.search(filter, limit, offset);
       res.json({ data: entries, total });
     }),
   );

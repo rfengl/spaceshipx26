@@ -9,6 +9,7 @@ import type { ResourcePublisher } from '../domain/ports/resourcePublisher.js';
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 import { badRequest, conflict, unauthorized } from '../utils/httpError.js';
 import { currentUser } from '../middleware/auth.js';
+import { parsePagination, queryString } from '../utils/pagination.js';
 
 interface ProfileInput {
   name?: string;
@@ -127,19 +128,16 @@ export function createMeRouter(
   router.get(
     '/history',
     asyncHandler(async (req, res) => {
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
-      const qs = (v: unknown) =>
-        typeof v === 'string' && v.trim() ? v.trim() : undefined;
+      const { limit, offset } = parsePagination(req.query);
       const { entries, total } = audit.search(
         {
           userId: currentUser(req).id,
-          resourceId: qs(req.query.resourceId),
-          from: qs(req.query.from),
-          to: qs(req.query.to),
+          resourceId: queryString(req.query.resourceId),
+          from: queryString(req.query.from),
+          to: queryString(req.query.to),
         },
-        pageSize,
-        (page - 1) * pageSize,
+        limit,
+        offset,
       );
       res.json({ data: entries, total });
     }),
