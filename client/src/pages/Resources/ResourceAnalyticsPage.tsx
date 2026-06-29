@@ -65,7 +65,10 @@ export default function ResourceAnalyticsPage() {
               {usage.resource.isDecommissioned ? 'Decommissioned' : 'Active'}
             </p>
             <div className="mt-4">
-              <UsageLineChart points={fillDailyWindow(usage.daily, WINDOW_DAYS)} />
+              <UsageLineChart
+                points={fillDailyWindow(usage.daily, WINDOW_DAYS)}
+                maxQty={usage.resource.maxQty}
+              />
             </div>
           </section>
 
@@ -95,7 +98,12 @@ export default function ResourceAnalyticsPage() {
                   {activity.map((e) => (
                     <tr key={e.id}>
                       <td data-label="When">{fmt(e.at)}</td>
-                      <td data-label="Who">{e.userName}</td>
+                      <td data-label="Who">
+                        {e.userName}{' '}
+                        <span className={`tier tier-${e.userLevel} ml-1 text-[0.62rem]`}>
+                          {e.userLevel}
+                        </span>
+                      </td>
                       <td data-label="Action">{e.type}</td>
                       <td className="num" data-label="Amount">
                         {e.amount || ''}

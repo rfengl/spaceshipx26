@@ -3,24 +3,35 @@ import type { DailyUsage } from '../../api/resources';
 interface Props {
   /** A continuous daily series (oldest first) — see fillDailyWindow. */
   points: DailyUsage[];
+  /** The resource's capacity, drawn as a red reference line. */
+  maxQty: number;
 }
 
-const W = 600;
-const H = 160;
-const PAD = 24;
+const W = 640;
+const H = 220;
+const M = { top: 16, right: 16, bottom: 28, left: 40 };
+const PLOT_W = W - M.left - M.right;
+const PLOT_H = H - M.top - M.bottom;
+
+const mmdd = (day: string) => day.slice(5); // YYYY-MM-DD -> MM-DD
 
 /**
- * A minimal inline-SVG line chart of daily usage — no charting dependency. The
- * polyline scales to the busiest day; hovering a point shows its date and count.
+ * Inline-SVG line chart of daily usage (no charting dependency). Has labelled X
+ * (dates) and Y (count) axes and a red reference line at the resource's max
+ * capacity, so consumption is read against the total it can hold.
  */
-export default function UsageLineChart({ points }: Props) {
-  const max = Math.max(1, ...points.map((p) => p.count));
-  const stepX = points.length > 1 ? (W - PAD * 2) / (points.length - 1) : 0;
-  const x = (i: number) => PAD + i * stepX;
-  const y = (count: number) => H - PAD - (count / max) * (H - PAD * 2);
+export default function UsageLineChart({ points, maxQty }: Props) {
+  const peak = Math.max(...points.map((p) => p.count), 0);
+  const yMax = Math.max(maxQty, peak, 1);
+  const total = points.reduce((s, p) => s + p.count, 0);
+
+  const x = (i: number) =>
+    M.left + (points.length > 1 ? (i / (points.length - 1)) * PLOT_W : 0);
+  const y = (v: number) => M.top + PLOT_H - (v / yMax) * PLOT_H;
 
   const line = points.map((p, i) => `${x(i)},${y(p.count)}`).join(' ');
-  const total = points.reduce((s, p) => s + p.count, 0);
+  const yTicks = [0, Math.round(yMax / 2), yMax];
+  const xTickIdx = [0, Math.floor((points.length - 1) / 2), points.length - 1];
 
   return (
     <figure className="m-0">
@@ -31,16 +42,79 @@ export default function UsageLineChart({ points }: Props) {
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
         role="img"
-        aria-label={`Daily usage for the last ${points.length} days`}
+        aria-label={`Daily usage over the last ${points.length} days (capacity ${maxQty})`}
       >
-        {/* baseline */}
+        {/* Y axis with ticks */}
         <line
-          x1={PAD}
-          y1={H - PAD}
-          x2={W - PAD}
-          y2={H - PAD}
-          stroke="rgba(255,255,255,0.15)"
+          x1={M.left}
+          y1={M.top}
+          x2={M.left}
+          y2={M.top + PLOT_H}
+          stroke="rgba(255,255,255,0.2)"
         />
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line
+              x1={M.left}
+              y1={y(t)}
+              x2={M.left + PLOT_W}
+              y2={y(t)}
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <text
+              x={M.left - 6}
+              y={y(t) + 3}
+              textAnchor="end"
+              fontSize="10"
+              fill="#7f93b8"
+            >
+              {t}
+            </text>
+          </g>
+        ))}
+
+        {/* X axis with date ticks */}
+        <line
+          x1={M.left}
+          y1={M.top + PLOT_H}
+          x2={M.left + PLOT_W}
+          y2={M.top + PLOT_H}
+          stroke="rgba(255,255,255,0.2)"
+        />
+        {xTickIdx.map((i) => (
+          <text
+            key={i}
+            x={x(i)}
+            y={M.top + PLOT_H + 16}
+            textAnchor={i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'}
+            fontSize="10"
+            fill="#7f93b8"
+          >
+            {points[i] && mmdd(points[i].day)}
+          </text>
+        ))}
+
+        {/* Red capacity reference line */}
+        <line
+          x1={M.left}
+          y1={y(maxQty)}
+          x2={M.left + PLOT_W}
+          y2={y(maxQty)}
+          stroke="#ff6b6b"
+          strokeWidth={1.5}
+          strokeDasharray="5 4"
+        />
+        <text
+          x={M.left + PLOT_W}
+          y={y(maxQty) - 4}
+          textAnchor="end"
+          fontSize="10"
+          fill="#ff9d9d"
+        >
+          max {maxQty}
+        </text>
+
+        {/* Usage line + points */}
         {points.length > 1 && (
           <polyline
             points={line}
@@ -56,7 +130,7 @@ export default function UsageLineChart({ points }: Props) {
             key={p.day}
             cx={x(i)}
             cy={y(p.count)}
-            r={p.count > 0 ? 3 : 2}
+            r={p.count > 0 ? 2.5 : 1.5}
             fill="#5ad0ff"
           >
             <title>

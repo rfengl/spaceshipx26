@@ -11,7 +11,6 @@ interface Props {
  */
 export default function TierUsageBars({ data }: Props) {
   const total = data.reduce((s, t) => s + t.uses, 0);
-  const max = Math.max(1, ...data.map((t) => t.uses));
 
   if (total === 0) {
     return <p className="muted m-0 text-[0.85rem]">No usage recorded yet.</p>;
@@ -20,18 +19,22 @@ export default function TierUsageBars({ data }: Props) {
   return (
     <ul className="m-0 flex list-none flex-col gap-2 p-0">
       {data.map((t) => {
-        const pct = Math.round((t.uses / total) * 100);
+        // Bar length is the tier's share of total usage, so it matches the %.
+        const share = (t.uses / total) * 100;
         return (
           <li key={t.level} className="flex items-center gap-3 text-[0.85rem]">
             <span className={`tier tier-${t.level} w-20 shrink-0 text-center`}>
               {t.level}
             </span>
-            <span
-              className="h-3 rounded bg-[#5ad0ff]"
-              style={{ width: `${(t.uses / max) * 100}%`, minWidth: t.uses ? 4 : 0 }}
-            />
-            <span className="muted shrink-0">
-              {t.uses} ({pct}%)
+            {/* Fixed-width track so the fill length reads as a true percentage. */}
+            <span className="h-3 flex-1 overflow-hidden rounded bg-white/[0.06]">
+              <span
+                className="block h-full rounded bg-[#5ad0ff]"
+                style={{ width: `${share}%` }}
+              />
+            </span>
+            <span className="muted w-24 shrink-0 text-right">
+              {t.uses} ({Math.round(share)}%)
             </span>
           </li>
         );
