@@ -5,14 +5,14 @@ import { getResourceUsage, listResources, type ResourceUsage } from '../../api/r
 import { getAuditPage, type AuditEntry } from '../../api/audit';
 import type { Resource } from '../../types';
 import { errorMessage } from '../../utils/errorMessage';
+import { usePagination } from '../../hooks/usePagination';
+import Pagination from '../../components/Pagination';
 import { fillDailyWindow } from './usageWindow';
 import UsageLineChart from './UsageLineChart';
 import TierUsageBars from './TierUsageBars';
+import { formatDateTime } from '../../utils/dateUtil';
 
 const WINDOW_DAYS = 30;
-
-const fmt = (at: string) =>
-  new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 /** Crew-lead per-resource trend view: 30-day usage, tier breakdown, recent activity. */
 export default function ResourceAnalyticsPage() {
@@ -22,8 +22,20 @@ export default function ResourceAnalyticsPage() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [usage, setUsage] = useState<ResourceUsage | null>(null);
   const [activity, setActivity] = useState<AuditEntry[]>([]);
+  const [activityTotal, setActivityTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Server-paged recent activity for the selected resource.
+  const { page, pageCount, pageSize, onPage, onPageSize } = usePagination<AuditEntry>(
+    null,
+    {
+      storageKey: 'analytics.activity.pageSize',
+      defaultPageSize: 10,
+      total: activityTotal,
+      resetKey: id,
+    },
+  );
 
   // The resource list powers the switcher.
   useEffect(() => {
@@ -39,27 +51,36 @@ export default function ResourceAnalyticsPage() {
     }
   }, [id, resources, navigate]);
 
-  // Load the selected resource's usage + recent activity.
+  // The selected resource's 30-day usage + tier breakdown.
   useEffect(() => {
     if (!id) return;
     let active = true;
     setLoading(true);
     setError(null);
-    Promise.all([
-      getResourceUsage(id, WINDOW_DAYS),
-      getAuditPage({ page: 1, pageSize: 10, resourceId: id }),
-    ])
-      .then(([u, audit]) => {
-        if (!active) return;
-        setUsage(u);
-        setActivity(audit.data);
-      })
+    getResourceUsage(id, WINDOW_DAYS)
+      .then((u) => active && setUsage(u))
       .catch((e) => active && setError(errorMessage(e)))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, [id]);
+
+  // The current page of this resource's activity (paged independently).
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    getAuditPage({ page, pageSize, resourceId: id })
+      .then((p) => {
+        if (!active) return;
+        setActivity(p.data);
+        setActivityTotal(p.total);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [id, page, pageSize]);
 
   return (
     <>
@@ -120,36 +141,47 @@ export default function ResourceAnalyticsPage() {
 
           <section className="card">
             <h3 className="m-0 text-[1rem]">Recent activity</h3>
-            {activity.length === 0 ? (
+            {activityTotal === 0 ? (
               <p className="muted mt-3">No activity recorded for this resource.</p>
             ) : (
-              <table className="data-table mt-3">
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Who</th>
-                    <th>Action</th>
-                    <th className="num">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activity.map((e) => (
-                    <tr key={e.id}>
-                      <td data-label="When">{fmt(e.at)}</td>
-                      <td data-label="Who">
-                        {e.userName}{' '}
-                        <span className={`tier tier-${e.userLevel} ml-1 text-[0.62rem]`}>
-                          {e.userLevel}
-                        </span>
-                      </td>
-                      <td data-label="Action">{e.type}</td>
-                      <td className="num" data-label="Amount">
-                        {e.amount || ''}
-                      </td>
+              <>
+                <table className="data-table mt-3">
+                  <thead>
+                    <tr>
+                      <th>When</th>
+                      <th>Who</th>
+                      <th>Action</th>
+                      <th className="num">Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {activity.map((e) => (
+                      <tr key={e.id}>
+                        <td data-label="When">{formatDateTime(e.at)}</td>
+                        <td data-label="Who">
+                          {e.userName}{' '}
+                          <span
+                            className={`tier tier-${e.userLevel} ml-1 text-[0.62rem]`}
+                          >
+                            {e.userLevel}
+                          </span>
+                        </td>
+                        <td data-label="Action">{e.type}</td>
+                        <td className="num" data-label="Amount">
+                          {e.amount || ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination
+                  page={page}
+                  pageCount={pageCount}
+                  pageSize={pageSize}
+                  onPage={onPage}
+                  onPageSize={onPageSize}
+                />
+              </>
             )}
           </section>
         </>

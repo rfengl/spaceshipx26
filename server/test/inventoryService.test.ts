@@ -29,8 +29,9 @@ const expectStatus = (status: number) => (err: { status?: number }) => {
 };
 
 const lastEntryFor = (resourceId: string) => {
-  const entries = audit.findByResource(resourceId);
-  return entries[entries.length - 1];
+  // search() returns newest-first, so the most recent entry is entries[0].
+  const { entries } = audit.search({ resourceId }, 100, 0);
+  return entries[0];
 };
 
 beforeEach(() => {

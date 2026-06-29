@@ -8,6 +8,7 @@ import type { PasswordHasher } from '../domain/ports/passwordHasher.js';
 import type { ResourcePublisher } from '../domain/ports/resourcePublisher.js';
 import type { AuditTrailRepository } from '../domain/ports/auditTrailRepository.js';
 import { badRequest, conflict, unauthorized } from '../utils/httpError.js';
+import { currentUser } from '../middleware/auth.js';
 
 interface ProfileInput {
   name?: string;
@@ -60,7 +61,7 @@ export function createMeRouter(
   router.get(
     '/profile',
     asyncHandler(async (req, res) => {
-      const me = users.findById(req.user!.id);
+      const me = users.findById(currentUser(req).id);
       if (!me) throw unauthorized('Account no longer exists');
       res.json({ data: toPublicUser(me) });
     }),
@@ -69,7 +70,7 @@ export function createMeRouter(
   router.put(
     '/profile',
     asyncHandler(async (req, res) => {
-      const me = users.findById(req.user!.id);
+      const me = users.findById(currentUser(req).id);
       if (!me) throw unauthorized('Account no longer exists');
 
       // Re-authenticate: the current access code must be confirmed before any change.
@@ -107,27 +108,40 @@ export function createMeRouter(
   router.get(
     '/resources',
     asyncHandler(async (req, res) => {
-      res.json({ data: usage.listAvailable(req.user!.id) });
+      res.json({ data: usage.listAvailable(currentUser(req).id) });
     }),
   );
 
   router.post(
     '/resources/:id/use',
     asyncHandler(async (req, res) => {
-      const { resource } = usage.use(req.user!.id, req.params.id);
+      const { resource } = usage.use(currentUser(req).id, req.params.id);
       // Crew dashboards see the stock drop live.
       publisher.publish({ type: 'resource.updated', resource });
       res.json({ data: resource });
     }),
   );
 
-  // The current user's own activity history (newest first) — their personal
-  // resource-consumption log.
+  // The current user's own activity history (newest first), paginated server-side
+  // — it grows unbounded, so it's never loaded in full.
   router.get(
     '/history',
     asyncHandler(async (req, res) => {
-      const entries = audit.findByUser(req.user!.id).reverse();
-      res.json({ data: entries });
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+      const qs = (v: unknown) =>
+        typeof v === 'string' && v.trim() ? v.trim() : undefined;
+      const { entries, total } = audit.search(
+        {
+          userId: currentUser(req).id,
+          resourceId: qs(req.query.resourceId),
+          from: qs(req.query.from),
+          to: qs(req.query.to),
+        },
+        pageSize,
+        (page - 1) * pageSize,
+      );
+      res.json({ data: entries, total });
     }),
   );
 

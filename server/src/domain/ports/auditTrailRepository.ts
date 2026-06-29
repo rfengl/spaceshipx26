@@ -37,8 +37,4 @@ export interface AuditTrailRepository {
   search(filter: AuditFilter, limit: number, offset: number): AuditPage;
   /** Resources ranked by USE count, highest demand first. */
   topUsed(limit: number): ResourceUsage[];
-  /** Enriched entries for one resource (oldest first). */
-  findByResource(resourceId: string): AuditEntry[];
-  /** Enriched entries for one user (oldest first). */
-  findByUser(userId: string): AuditEntry[];
 }

@@ -56,7 +56,23 @@ export async function getAuditPage(q: AuditQuery): Promise<AuditPage> {
   return apiFetch<AuditPage>(`/api/reports/audit?${params}`);
 }
 
-/** The current user's own activity history (newest first). */
-export async function getMyHistory(): Promise<AuditEntry[]> {
-  return (await apiFetch<{ data: AuditEntry[] }>('/api/me/history')).data;
+/**
+ * One newest-first page of the current user's own activity history plus the
+ * total match count. Paginated server-side, like the crew audit trail.
+ */
+export async function getMyHistory(q: {
+  page: number;
+  pageSize: number;
+  resourceId?: string;
+  from?: string;
+  to?: string;
+}): Promise<AuditPage> {
+  const params = new URLSearchParams({
+    page: String(q.page),
+    pageSize: String(q.pageSize),
+  });
+  if (q.resourceId) params.set('resourceId', q.resourceId);
+  if (q.from) params.set('from', q.from);
+  if (q.to) params.set('to', q.to);
+  return apiFetch<AuditPage>(`/api/me/history?${params}`);
 }

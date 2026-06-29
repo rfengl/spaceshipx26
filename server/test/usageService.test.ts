@@ -109,7 +109,7 @@ test('use decrements remaining stock and records a USE audit entry', () => {
   assert.equal(resource.remainingQty, 4);
   assert.equal(resources.findById(food.id)?.remainingQty, 4);
 
-  const entries = audit.findByResource(food.id);
+  const { entries } = audit.search({ resourceId: food.id }, 100, 0);
   assert.equal(entries.length, 1);
   assert.equal(entries[0].type, 'USE');
   assert.equal(entries[0].userId, silver.id);

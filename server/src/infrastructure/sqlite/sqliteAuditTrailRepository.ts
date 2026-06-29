@@ -105,16 +105,4 @@ export class SqliteAuditTrailRepository implements AuditTrailRepository {
       )
       .all(limit) as ResourceUsage[];
   }
-
-  findByResource(resourceId: string): AuditEntry[] {
-    return this.db
-      .prepare(`${ENRICHED} WHERE a.resource_id = ? ORDER BY at`)
-      .all(resourceId) as AuditEntry[];
-  }
-
-  findByUser(userId: string): AuditEntry[] {
-    return this.db
-      .prepare(`${ENRICHED} WHERE a.user_id = ? ORDER BY at`)
-      .all(userId) as AuditEntry[];
-  }
 }

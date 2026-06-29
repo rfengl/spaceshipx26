@@ -123,7 +123,7 @@ test('inventory service refills and writes an audit-trail entry', () => {
   const { resource } = inventory.refill(crew.id, cabin.id, 4);
   assert.equal(resource.remainingQty, 7);
 
-  const logs = audit.findByResource(cabin.id);
+  const { entries: logs } = audit.search({ resourceId: cabin.id }, 100, 0);
   assert.equal(logs.length, 1);
   assert.equal(logs[0].type, 'REFILL');
   assert.equal(logs[0].userId, crew.id);
@@ -131,7 +131,7 @@ test('inventory service refills and writes an audit-trail entry', () => {
 
   // Over-cap refill throws and leaves the audit trail untouched.
   assert.throws(() => inventory.refill(crew.id, cabin.id, 99));
-  assert.equal(audit.findByResource(cabin.id).length, 1);
+  assert.equal(audit.search({ resourceId: cabin.id }, 100, 0).total, 1);
 });
 
 test('soft-deleting a user preserves history and drops them from the roster', () => {
@@ -149,13 +149,13 @@ test('soft-deleting a user preserves history and drops them from the roster', ()
   const r = resources.create({ name: 'Adv. Medical Bay', minLevel: 'GOLD', maxQty: 5 });
 
   audit.record({ userId: u.id, resourceId: r.id, action: 'USE', amount: 1 });
-  assert.equal(audit.findByUser(u.id).length, 1);
+  assert.equal(audit.search({ userId: u.id }, 100, 0).total, 1);
   assert.equal(users.findPassengers().length, 1);
 
   const deactivated = users.deactivate(u.id);
   assert.equal(deactivated?.active, false);
   // Row (and its audit history) is preserved — no hard delete, no cascade.
-  assert.equal(audit.findByUser(u.id).length, 1);
+  assert.equal(audit.search({ userId: u.id }, 100, 0).total, 1);
   assert.equal(users.findById(u.id)?.active, false);
   // ...but they no longer appear on the active roster.
   assert.equal(users.findPassengers().length, 0);

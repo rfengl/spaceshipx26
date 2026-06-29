@@ -8,9 +8,7 @@ import { listPassengers } from '../../api/passengers';
 import { usePagination } from '../../hooks/usePagination';
 import BackDashboardButton from '../../components/BackDashboardButton';
 import { errorMessage } from '../../utils/errorMessage';
-
-const fmt = (at: string) =>
-  new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+import { formatDateTime } from '../../utils/dateUtil';
 
 // Display label + badge colour per activity type.
 const ACTION_META: Record<AuditAction, { label: string; cls: string }> = {
@@ -232,7 +230,7 @@ export default function AuditTrailPage() {
                   const meta = ACTION_META[e.type];
                   return (
                     <tr key={e.id}>
-                      <td data-label="When">{fmt(e.at)}</td>
+                      <td data-label="When">{formatDateTime(e.at)}</td>
                       <td data-label="Activity">
                         <span
                           className={`rounded px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-[0.06em] ${meta.cls}`}

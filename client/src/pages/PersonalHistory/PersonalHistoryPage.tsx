@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../../components/Pagination';
 import { getMyHistory, type AuditEntry } from '../../api/audit';
+import { listMyResources } from '../../api/resources';
+import type { Resource } from '../../types';
 import BackDashboardButton from '../../components/BackDashboardButton';
 import { errorMessage } from '../../utils/errorMessage';
-
-const fmt = (at: string) =>
-  new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+import { formatDateTime } from '../../utils/dateUtil';
 
 export default function PersonalHistoryPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,44 +20,42 @@ export default function PersonalHistoryPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
+  // Server-driven paging: this page fetches its own slice (items = null).
+  const { page, pageCount, pageSize, onPage, onPageSize } = usePagination<AuditEntry>(
+    null,
+    { storageKey: 'history.pageSize', total, resetKey: `${resourceId}|${from}|${to}` },
+  );
+
+  // Resources the passenger can reach — drives the filter dropdown.
   useEffect(() => {
-    getMyHistory()
-      .then(setEntries)
-      .catch((e) => setError(errorMessage(e)))
-      .finally(() => setLoading(false));
+    listMyResources()
+      .then(setResources)
+      .catch(() => {});
   }, []);
 
-  // Count uses per resource — drives both the dropdown and the trend summary.
-  const groupByResource = (list: AuditEntry[]) => {
-    const counts = new Map<string, { name: string; uses: number }>();
-    list.forEach((e) => {
-      const cur = counts.get(e.resourceId) ?? { name: e.resourceName, uses: 0 };
-      cur.uses += 1;
-      counts.set(e.resourceId, cur);
-    });
-    return [...counts.entries()]
-      .map(([id, v]) => ({ id, ...v }))
-      .sort((a, b) => b.uses - a.uses);
-  };
-
-  // Dropdown options stay stable (from all entries) regardless of the filters.
-  const resourceOptions = useMemo(() => groupByResource(entries), [entries]);
-
-  const filtered = entries.filter((e) => {
-    if (resourceId && e.resourceId !== resourceId) return false;
-    const day = e.at.slice(0, 10); // YYYY-MM-DD
-    if (from && day < from) return false;
-    if (to && day > to) return false;
-    return true;
-  });
-
-  // The summary reflects the active filters (so the date range affects totals).
-  const summary = groupByResource(filtered);
-
-  const { pageItems, ...paging } = usePagination(filtered, {
-    storageKey: 'history.pageSize',
-    resetKey: `${resourceId}|${from}|${to}`,
-  });
+  // Fetch the current page server-side whenever paging or filters change.
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    getMyHistory({
+      page,
+      pageSize,
+      resourceId: resourceId || undefined,
+      from: from || undefined,
+      to: to || undefined,
+    })
+      .then((res) => {
+        if (!active) return;
+        setEntries(res.data);
+        setTotal(res.total);
+      })
+      .catch((e) => active && setError(errorMessage(e)))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [page, pageSize, resourceId, from, to]);
 
   const hasFilter = Boolean(resourceId || from || to);
   const clear = () => {
@@ -86,7 +86,7 @@ export default function PersonalHistoryPage() {
               onChange={(e) => setResourceId(e.target.value)}
             >
               <option value="">All</option>
-              {resourceOptions.map((r) => (
+              {resources.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
@@ -124,33 +124,23 @@ export default function PersonalHistoryPage() {
           </button>
         )}
 
-        {/* Consumption trend summary — reflects the active filters. */}
-        {!loading && filtered.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[0.8rem]">
-              <strong className="text-[#bcd4ff]">{filtered.length}</strong>{' '}
-              <span className="text-[#9fb3d8]">total uses</span>
-            </span>
-            {summary.slice(0, 4).map((r) => (
-              <span
-                key={r.id}
-                className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[0.8rem]"
-              >
-                {r.name} <strong className="text-[#8ef5b0]">×{r.uses}</strong>
-              </span>
-            ))}
-          </div>
+        {!loading && total > 0 && (
+          <p className="muted mt-3 text-[0.85rem]">
+            <strong className="text-[#bcd4ff]">{total}</strong> use
+            {total === 1 ? '' : 's'}
+            {hasFilter ? ' match these filters' : ' recorded'}.
+          </p>
         )}
 
         {error && <p className="error mt-3">⚠ {error}</p>}
 
-        {loading ? (
+        {loading && entries.length === 0 ? (
           <p className="muted mt-4">Loading history…</p>
-        ) : filtered.length === 0 ? (
+        ) : total === 0 ? (
           <p className="muted mt-4">
-            {entries.length === 0
-              ? 'You have not used any resources yet.'
-              : 'No activity matches these filters.'}
+            {hasFilter
+              ? 'No activity matches these filters.'
+              : 'You have not used any resources yet.'}
           </p>
         ) : (
           <>
@@ -163,9 +153,9 @@ export default function PersonalHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((e) => (
+                {entries.map((e) => (
                   <tr key={e.id}>
-                    <td data-label="When">{fmt(e.at)}</td>
+                    <td data-label="When">{formatDateTime(e.at)}</td>
                     <td data-label="Resource">{e.resourceName}</td>
                     <td className="num" data-label="Units">
                       −{e.amount}
@@ -175,7 +165,13 @@ export default function PersonalHistoryPage() {
               </tbody>
             </table>
 
-            <Pagination {...paging} />
+            <Pagination
+              page={page}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              onPage={onPage}
+              onPageSize={onPageSize}
+            />
           </>
         )}
       </section>

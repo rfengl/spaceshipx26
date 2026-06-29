@@ -145,7 +145,7 @@ test('using a resource decrements remaining and records an audit log', async () 
     assert.ok(beforeStock >= 1, 'resource has stock to use');
 
     const audit = new SqliteAuditTrailRepository(db);
-    const beforeLogs = audit.findByUser(nova.id).length;
+    const beforeLogs = audit.search({ userId: nova.id }, 1, 0).total;
 
     const res = await fetch(`${base}/api/me/resources/${food.id}/use`, {
       method: 'POST',
@@ -155,8 +155,8 @@ test('using a resource decrements remaining and records an audit log', async () 
     assert.equal((await res.json()).data.remainingQty, beforeStock - 1);
 
     // Audit trail: the use adds exactly one entry for this passenger.
-    const logs = audit.findByUser(nova.id);
-    assert.equal(logs.length, beforeLogs + 1);
+    const { entries: logs, total } = audit.search({ userId: nova.id }, 100, 0);
+    assert.equal(total, beforeLogs + 1);
     assert.ok(logs.some((l) => l.type === 'USE' && l.resourceId === food.id));
 
     // Personal history returns this passenger's own entries, enriched.
