@@ -1,7 +1,7 @@
 import { Router, type RequestHandler } from 'express';
 
 import asyncHandler from '../utils/asyncHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, currentUser } from '../middleware/auth.js';
 import { isMembershipLevel } from '../domain/membership.js';
 import type { NewResource } from '../domain/models.js';
 import type {
@@ -77,7 +77,7 @@ export function createResourcesRouter(
     asyncHandler(async (req, res) => {
       const created = resources.create(validateNew(req.body));
       audit.record({
-        userId: req.user!.id,
+        userId: currentUser(req).id,
         resourceId: created.id,
         action: 'PROVISION',
       });
@@ -108,7 +108,7 @@ export function createResourcesRouter(
         changes.isDecommissioned !== before.isDecommissioned
       ) {
         audit.record({
-          userId: req.user!.id,
+          userId: currentUser(req).id,
           resourceId: updated.id,
           action: changes.isDecommissioned ? 'DECOMMISSION' : 'RECOMMISSION',
         });
@@ -124,7 +124,7 @@ export function createResourcesRouter(
     asyncHandler(async (req, res) => {
       if (!resources.deactivate(req.params.id)) throw notFound('Resource not found');
       audit.record({
-        userId: req.user!.id,
+        userId: currentUser(req).id,
         resourceId: req.params.id,
         action: 'DELETE',
       });
@@ -138,7 +138,7 @@ export function createResourcesRouter(
     asyncHandler(async (req, res) => {
       const { amount } = (req.body ?? {}) as Record<string, unknown>;
       const { resource } = inventory.refill(
-        req.user!.id,
+        currentUser(req).id,
         req.params.id,
         amount as number,
       );
@@ -153,7 +153,7 @@ export function createResourcesRouter(
     asyncHandler(async (req, res) => {
       const { amount, reason } = (req.body ?? {}) as Record<string, unknown>;
       const { resource } = inventory.writeOff(
-        req.user!.id,
+        currentUser(req).id,
         req.params.id,
         amount as number,
         typeof reason === 'string' ? reason : undefined,

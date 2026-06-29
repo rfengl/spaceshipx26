@@ -3,6 +3,7 @@ import { Router, type RequestHandler } from 'express';
 import asyncHandler from '../utils/asyncHandler.js';
 import type { AuthService } from '../application/authService.js';
 import { badRequest } from '../utils/httpError.js';
+import { currentUser } from '../middleware/auth.js';
 
 export function createAuthRouter(
   authService: AuthService,
@@ -29,12 +30,12 @@ export function createAuthRouter(
 
   // GET /api/auth/me -> current authenticated user
   router.get('/me', authenticate, (req, res) => {
-    res.json({ user: req.user });
+    res.json({ user: currentUser(req) });
   });
 
   // POST /api/auth/refresh -> a fresh token, to keep an active session alive.
   router.post('/refresh', authenticate, (req, res) => {
-    res.json(authService.refresh(req.user!));
+    res.json(authService.refresh(currentUser(req)));
   });
 
   return router;

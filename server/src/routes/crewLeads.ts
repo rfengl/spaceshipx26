@@ -1,7 +1,7 @@
 import { Router, type RequestHandler } from 'express';
 
 import asyncHandler from '../utils/asyncHandler.js';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, currentUser } from '../middleware/auth.js';
 import type { CrewLeadService } from '../application/crewLeadService.js';
 import { badRequest } from '../utils/httpError.js';
 
@@ -39,7 +39,7 @@ export function createCrewLeadsRouter(
       if (typeof demoteId !== 'string' || typeof promoteId !== 'string') {
         throw badRequest('`demoteId` and `promoteId` are required');
       }
-      const request = service.propose(req.user!.id, demoteId, promoteId);
+      const request = service.propose(currentUser(req).id, demoteId, promoteId);
       res.status(201).json({ data: request });
     }),
   );
@@ -48,7 +48,7 @@ export function createCrewLeadsRouter(
     '/requests/:id/approve',
     crewOnly,
     asyncHandler(async (req, res) => {
-      res.json({ data: service.approve(req.params.id, req.user!.id) });
+      res.json({ data: service.approve(req.params.id, currentUser(req).id) });
     }),
   );
 
@@ -56,7 +56,7 @@ export function createCrewLeadsRouter(
     '/requests/:id/reject',
     crewOnly,
     asyncHandler(async (req, res) => {
-      res.json({ data: service.reject(req.params.id, req.user!.id) });
+      res.json({ data: service.reject(req.params.id, currentUser(req).id) });
     }),
   );
 

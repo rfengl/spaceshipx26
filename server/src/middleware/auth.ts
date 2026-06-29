@@ -1,9 +1,19 @@
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
 
 import type { AuthUser, Role } from '../domain/models.js';
 import type { TokenService } from '../domain/ports/tokenService.js';
 import type { UserRepository } from '../domain/ports/userRepository.js';
 import { unauthorized, forbidden } from '../utils/httpError.js';
+
+/**
+ * The authenticated user attached by `authenticate`. Use this in handlers
+ * mounted behind it instead of `req.user!` — it narrows the type and throws if
+ * the middleware was somehow skipped.
+ */
+export function currentUser(req: Request): AuthUser {
+  if (!req.user) throw unauthorized();
+  return req.user;
+}
 
 /**
  * Verifies the `Authorization: Bearer <jwt>` header and attaches `req.user`.
