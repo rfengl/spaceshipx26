@@ -32,6 +32,8 @@ export default function UsageLineChart({ points, maxQty }: Props) {
   const line = points.map((p, i) => `${x(i)},${y(p.count)}`).join(' ');
   const yTicks = [0, Math.round(yMax / 2), yMax];
   const xTickIdx = [0, Math.floor((points.length - 1) / 2), points.length - 1];
+  // Width of each day's hover band (so the tooltip is easy to hit).
+  const bandW = points.length > 1 ? PLOT_W / (points.length - 1) : PLOT_W;
 
   return (
     <figure className="m-0">
@@ -130,13 +132,26 @@ export default function UsageLineChart({ points, maxQty }: Props) {
             key={p.day}
             cx={x(i)}
             cy={y(p.count)}
-            r={p.count > 0 ? 2.5 : 1.5}
+            r={p.count > 0 ? 3 : 1.5}
             fill="#5ad0ff"
+          />
+        ))}
+
+        {/* Invisible full-height hover bands so the tooltip is easy to hit —
+            mouse anywhere in a day's column, not just on the small dot. */}
+        {points.map((p, i) => (
+          <rect
+            key={`hit-${p.day}`}
+            x={x(i) - bandW / 2}
+            y={M.top}
+            width={bandW}
+            height={PLOT_H}
+            fill="transparent"
           >
             <title>
-              {p.day}: {p.count}
+              {p.day}: {p.count} use{p.count === 1 ? '' : 's'}
             </title>
-          </circle>
+          </rect>
         ))}
       </svg>
     </figure>
