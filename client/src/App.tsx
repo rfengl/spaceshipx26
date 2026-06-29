@@ -136,6 +136,7 @@ export default function App() {
           <Route element={<RequireCrew />}>
             <Route path="resources" element={<ResourcesPage />} />
             <Route path="resources/:id" element={<ResourceAnalyticsPage />} />
+            <Route path="analytics" element={<ResourceAnalyticsPage />} />
             <Route path="passengers" element={<PassengersPage />} />
             <Route path="audit-trail" element={<AuditTrailPage />} />
             <Route path="reports" element={<AggregatedReportsPage />} />

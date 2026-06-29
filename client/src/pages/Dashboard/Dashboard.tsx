@@ -36,6 +36,12 @@ const NAV_ITEMS = [
     title: 'Aggregated Reports',
     description: 'Ship-wide resource distribution by passenger tier.',
   },
+  {
+    to: '/analytics',
+    icon: '📈',
+    title: 'Resource Analytics',
+    description: 'Per-resource usage trend, tier breakdown, and recent activity.',
+  },
 ];
 
 // Colour cards by remaining stock so the worst shortages stand out.
