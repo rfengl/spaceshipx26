@@ -23,6 +23,7 @@ export default function ResourceAnalyticsPage() {
   const [usage, setUsage] = useState<ResourceUsage | null>(null);
   const [activity, setActivity] = useState<AuditEntry[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +42,7 @@ export default function ResourceAnalyticsPage() {
   useEffect(() => {
     listResources()
       .then(setResources)
-      .catch(() => {});
+      .catch((e) => setError(errorMessage(e)));
   }, []);
 
   // Reached without a resource (e.g. from the dashboard) — open the first one.
@@ -75,8 +76,9 @@ export default function ResourceAnalyticsPage() {
         if (!active) return;
         setActivity(p.data);
         setActivityTotal(p.total);
+        setActivityError(null);
       })
-      .catch(() => {});
+      .catch((e) => active && setActivityError(errorMessage(e)));
     return () => {
       active = false;
     };
@@ -141,7 +143,9 @@ export default function ResourceAnalyticsPage() {
 
           <section className="card">
             <h3 className="m-0 text-[1rem]">Recent activity</h3>
-            {activityTotal === 0 ? (
+            {activityError ? (
+              <p className="error mt-3">⚠ {activityError}</p>
+            ) : activityTotal === 0 ? (
               <p className="muted mt-3">No activity recorded for this resource.</p>
             ) : (
               <>

@@ -86,7 +86,9 @@ export class SqliteAuditTrailRepository implements AuditTrailRepository {
 
     const entries = this.db
       .prepare(
-        `${ENRICHED} ${where} ORDER BY a.created_at DESC LIMIT @limit OFFSET @offset`,
+        // a.id breaks ties so rows sharing a timestamp keep a stable order
+        // across pages (no row appearing twice or being skipped).
+        `${ENRICHED} ${where} ORDER BY a.created_at DESC, a.id DESC LIMIT @limit OFFSET @offset`,
       )
       .all({ ...params, limit, offset }) as AuditEntry[];
 
